@@ -1,10 +1,14 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.services.compiler_service import CompilerService
+
 router = APIRouter(
     prefix="/api/compile",
     tags=["Compilation"]
 )
+
+compiler_service = CompilerService()
 
 
 class CompileRequest(BaseModel):
@@ -13,9 +17,4 @@ class CompileRequest(BaseModel):
 
 @router.post("/")
 def compile_plugin(request: CompileRequest):
-    return {
-        "success": True,
-        "message": "Compilation endpoint ready",
-        "status": "pending",
-        "code_length": len(request.code)
-    }
+    return compiler_service.compile(request.code)

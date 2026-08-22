@@ -1,10 +1,14 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.services.runtime_service import RuntimeService
+
 router = APIRouter(
     prefix="/api/execute",
     tags=["Execution"]
 )
+
+runtime_service = RuntimeService()
 
 
 class ExecuteRequest(BaseModel):
@@ -13,9 +17,4 @@ class ExecuteRequest(BaseModel):
 
 @router.post("/")
 def execute_plugin(request: ExecuteRequest):
-    return {
-        "success": True,
-        "message": "Execution endpoint ready",
-        "status": "pending",
-        "module_id": request.module_id
-    }
+    return runtime_service.execute(request.module_id)
