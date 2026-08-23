@@ -1,3 +1,5 @@
+import Editor from "@monaco-editor/react"
+
 function App() {
   return (
     <div className="app">
@@ -11,8 +13,13 @@ function App() {
       </header>
 
       <main className="main-content">
-        <div className="editor-placeholder">
-          Editor
+        <div className="editor-container">
+          <Editor
+            height="100%"
+            language="python"
+            theme="vs-dark"
+            defaultValue="# Write your Python code here\nprint('Hello, WasmBox!')"
+          />
         </div>
       </main>
     </div>
