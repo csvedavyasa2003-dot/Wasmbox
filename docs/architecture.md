@@ -4,53 +4,92 @@
 
 WasmBox is a secure multi-tenant WebAssembly plugin sandbox designed to execute untrusted customer Python plugins in an isolated environment.
 
-The system uses WebAssembly and Wasmtime to provide controlled plugin execution while restricting access to sensitive host resources such as the filesystem and network.
+The system separates compilation, runtime execution, security, frontend interaction, and backend integration into independent components.
 
 ---
 
-## 2. Project Goals
+## 2. Architecture Goals
 
-The main goals of WasmBox are:
+The main architecture goals are:
 
-- Safely execute untrusted Python plugins.
-- Compile Python plugins into WebAssembly.
-- Execute WebAssembly modules using Wasmtime.
-- Isolate plugin execution from the host system.
-- Restrict filesystem and network access.
-- Apply execution and resource limits.
-- Provide a developer portal for creating and testing plugins.
-- Manage saved plugins and execution results.
-- Provide a clean API for integrating the compiler, runtime, security and frontend components.
+- Secure execution of untrusted plugins.
+- Isolation between plugin executions.
+- Separation of compiler and runtime components.
+- Clear API boundaries between components.
+- Resource and execution control.
+- Easy integration with the developer portal.
+- Independent development of project modules.
 
 ---
 
 ## 3. High-Level Architecture
 
 ```text
-                    User
-                     │
-                     ▼
-          React + Monaco Portal
-                     │
-                     ▼
-              FastAPI Backend
-             / Integration API
-                     │
-        ┌────────────┼────────────┐
-        │            │            │
-        ▼            ▼            ▼
-    Compiler      Runtime     Plugin Manager
-        │            │
-        │            ▼
-        │         Security
-        │         Sandbox
-        │            │
-        │            ▼
-        │         Wasmtime
-        │            │
-        └────────────┤
-                     ▼
-              Execution Result
-                     │
-                     ▼
-                React Portal
+User
+ |
+ v
+React + Monaco Developer Portal
+ |
+ v
+FastAPI Backend / Integration Layer
+ |
+ +----------------+----------------+----------------+
+ |                |                |
+ v                v                v
+Compiler        Runtime          Plugin
+Component       Component        Management
+ |                |
+ v                v
+Python -> WASM   Security
+                 Sandbox
+                    |
+                    v
+                 Wasmtime
+                    |
+                    v
+             Execution Result
+                    |
+                    v
+              React Portal
+
+---
+
+## 4. Core Components
+
+### 4.1 FastAPI Backend / Integration Layer
+
+The FastAPI backend acts as the central integration layer of WasmBox.
+
+Its responsibilities include:
+
+- Exposing REST API endpoints.
+- Receiving requests from the developer portal.
+- Validating API request data.
+- Routing requests to the appropriate service interface.
+- Providing a consistent interface between frontend and backend components.
+- Returning execution and integration results to the client.
+
+The backend does not directly implement the compiler, WebAssembly runtime, or security sandbox logic.
+
+---
+
+### 4.2 Compiler Integration
+
+The `/api/compile/` endpoint provides the interface for submitting Python plugin source code to the compilation component.
+
+The current integration flow is:
+
+```text
+Python Plugin Code
+ |
+ v
+POST /api/compile/
+ |
+ v
+Compile Route
+ |
+ v
+CompilerService
+ |
+ v
+Compilation Component
