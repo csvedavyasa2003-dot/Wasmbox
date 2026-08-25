@@ -35,8 +35,13 @@
   font-size: 14px;
 }
 
-.actions button:hover {
+.actions button:hover:not(:disabled) {
   background: #2a3040;
+}
+
+.actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .main-content {
@@ -84,8 +89,10 @@
   color: #8b93a3;
   font-family: monospace;
   font-size: 13px;
+  overflow: auto;
 }
 
-.output-content p {
+.output-content pre {
   margin: 0;
+  white-space: pre-wrap;
 }

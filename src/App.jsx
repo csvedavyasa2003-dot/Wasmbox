@@ -8,12 +8,27 @@ function App() {
 
   const [output, setOutput] = useState("Output will appear here.")
 
+  const [isCompiling, setIsCompiling] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
+
   const handleCompile = () => {
-    setOutput("Compile button clicked.\nCode is ready for compilation.")
+    setIsCompiling(true)
+    setOutput("Compiling...")
+
+    setTimeout(() => {
+      setIsCompiling(false)
+      setOutput("Compilation completed.")
+    }, 1000)
   }
 
   const handleRun = () => {
-    setOutput("Run button clicked.\nExecution will be connected later.")
+    setIsRunning(true)
+    setOutput("Running...")
+
+    setTimeout(() => {
+      setIsRunning(false)
+      setOutput("Execution completed.")
+    }, 1000)
   }
 
   return (
@@ -22,8 +37,19 @@ function App() {
         <h1>WasmBox</h1>
 
         <div className="actions">
-          <button onClick={handleCompile}>Compile</button>
-          <button onClick={handleRun}>Run</button>
+          <button
+            onClick={handleCompile}
+            disabled={isCompiling || isRunning}
+          >
+            {isCompiling ? "Compiling..." : "Compile"}
+          </button>
+
+          <button
+            onClick={handleRun}
+            disabled={isCompiling || isRunning}
+          >
+            {isRunning ? "Running..." : "Run"}
+          </button>
         </div>
       </header>
 
