@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File
 import os
 
 from backend.app.wasm_service import run_uploaded_wasm
-from backend.app.models import WasmRunRequest
+from backend.app.models import RunRequest
 
 app = FastAPI(title="WasmBox API")
 
@@ -38,12 +38,12 @@ async def upload_wasm(file: UploadFile = File(...)):
     }
 
 
-@app.post("/run-uploaded-wasm")
-def execute_uploaded_wasm(data: WasmRunRequest):
+@app.post("/api/run")
+def run_module(data: RunRequest):
 
     file_path = os.path.join(
         UPLOAD_DIR,
-        data.filename
+        data.module_id
     )
 
     result = run_uploaded_wasm(
@@ -53,8 +53,7 @@ def execute_uploaded_wasm(data: WasmRunRequest):
     )
 
     return {
-        "filename": data.filename,
-        "a": data.a,
-        "b": data.b,
-        "result": result
+        "module_id": data.module_id,
+        "stdout": str(result),
+        "stderr": ""
     }

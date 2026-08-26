@@ -1,12 +1,7 @@
 from pydantic import BaseModel
 
 
-class AddRequest(BaseModel):
-    a: int
-    b: int
-
-
-class WasmRunRequest(BaseModel):
-    filename: str
+class RunRequest(BaseModel):
+    module_id: str
     a: int
     b: int
