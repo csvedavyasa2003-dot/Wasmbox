@@ -1,5 +1,6 @@
 import { useState } from "react"
 import Editor from "@monaco-editor/react"
+import { runCode } from "./services/api"
 
 function App() {
   const [code, setCode] = useState(
@@ -13,22 +14,32 @@ function App() {
 
   const handleCompile = () => {
     setIsCompiling(true)
-    setOutput("Compiling...")
+    setOutput("Compilation is waiting for the backend compile API...")
 
     setTimeout(() => {
       setIsCompiling(false)
-      setOutput("Compilation completed.")
     }, 1000)
   }
 
-  const handleRun = () => {
+  const handleRun = async () => {
     setIsRunning(true)
     setOutput("Running...")
 
-    setTimeout(() => {
+    try {
+      const result = await runCode("test.wasm", 10, 20)
+
+      if (result.stderr) {
+        setOutput(
+          `stdout:\n${result.stdout || ""}\n\nstderr:\n${result.stderr}`
+        )
+      } else {
+        setOutput(`stdout:\n${result.stdout || ""}`)
+      }
+    } catch (error) {
+      setOutput(`Execution failed:\n${error.message}`)
+    } finally {
       setIsRunning(false)
-      setOutput("Execution completed.")
-    }, 1000)
+    }
   }
 
   return (
