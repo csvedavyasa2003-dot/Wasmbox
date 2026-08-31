@@ -34,3 +34,9 @@ instance/
 
 # --- Docker ---
 *.pid
+
+lib/
+pyodide/
+pyodide.tar.bz2
+*.tar.bz2
+*.tar.gz
