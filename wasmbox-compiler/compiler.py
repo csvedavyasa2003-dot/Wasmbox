@@ -1,11 +1,44 @@
 import wasmtime
 
+RESTRICTED_IMPORTS = {"os", "socket", "subprocess", "sys", "shutil", "ctypes"}
+
+def validate_python_code(source_code: str) -> tuple[bool, str | None]:
+    """
+    Basic static check for restricted imports before compilation.
+    Returns (is_valid, error_message).
+    """
+    import ast
+
+    try:
+        tree = ast.parse(source_code)
+    except SyntaxError as e:
+        return False, f"Syntax error: {e}"
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".")[0] in RESTRICTED_IMPORTS:
+                    return False, f"Restricted import not allowed: {alias.name}"
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.module.split(".")[0] in RESTRICTED_IMPORTS:
+                return False, f"Restricted import not allowed: {node.module}"
+
+    return True, None
+
 def run_python_plugin(source_code: str) -> dict:
     """
     Executes untrusted Python source code inside a WASI-sandboxed
     CPython interpreter running in Wasmtime.
     Returns a dict with captured stdout, stderr, and success status.
     """
+    is_valid, validation_error = validate_python_code(source_code)
+    if not is_valid:
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "",
+            "error": validation_error,
+        }
     engine = wasmtime.Engine()
     store = wasmtime.Store(engine)
 
