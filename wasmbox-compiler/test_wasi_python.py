@@ -4,7 +4,7 @@ engine = wasmtime.Engine()
 store = wasmtime.Store(engine)
 
 wasi_config = wasmtime.WasiConfig()
-wasi_config.argv = ["python", "-c", "print('hello from wasm')"]
+wasi_config.argv = ["python", "-c", "print('hello world')"]
 wasi_config.inherit_stdout()
 wasi_config.inherit_stderr()
 wasi_config.preopen_dir(".", "/")
