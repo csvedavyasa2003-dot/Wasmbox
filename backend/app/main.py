@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.routes import compile, execute, plugins
+from backend.app.api.routes import compile, execute, plugins
 
 
 app = FastAPI(

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.services.compiler_service import CompilerService
+from backend.app.services.compiler_service import CompilerService
 
 router = APIRouter(
     prefix="/api/compile",
