@@ -15,6 +15,6 @@ class ExecuteRequest(BaseModel):
     module_id: str
 
 
-@router.post("/")
+@router.post("")
 def execute_plugin(request: ExecuteRequest):
     return runtime_service.execute(request.module_id)

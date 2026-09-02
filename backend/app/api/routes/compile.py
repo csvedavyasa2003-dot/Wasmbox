@@ -15,6 +15,6 @@ class CompileRequest(BaseModel):
     code: str
 
 
-@router.post("/")
+@router.post("")
 def compile_plugin(request: CompileRequest):
     return compiler_service.compile(request.code)
