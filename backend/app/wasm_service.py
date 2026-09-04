@@ -1,0 +1,14 @@
+from wasmtime import Store, Module, Instance
+
+def run_uploaded_wasm(file_path: str, a: int, b: int):
+    store = Store()
+
+    module = Module.from_file(store.engine, file_path)
+
+    instance = Instance(store, module, [])
+
+    add = instance.exports(store)["add"]
+
+    result = add(store, a, b)
+
+    return result

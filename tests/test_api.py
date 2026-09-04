@@ -78,3 +78,21 @@ def test_execute():
     assert data["success"] is True
     assert data["status"] == "pending"
     assert data["module_id"] == "test-module"
+
+def test_run_wasm_module():
+    response = client.post(
+        "/api/run",
+        json={
+            "module_id": "test.wasm",
+            "a": 10,
+            "b": 20
+        }
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["module_id"] == "test.wasm"
+    assert data["stdout"] == "30"
+    assert data["stderr"] == ""
