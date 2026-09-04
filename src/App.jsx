@@ -1,6 +1,6 @@
 import { useState } from "react"
 import Editor from "@monaco-editor/react"
-import { runCode } from "./services/api"
+import { compileCode, runCode } from "./services/api"
 
 function App() {
   const [code, setCode] = useState(
@@ -8,25 +8,49 @@ function App() {
   )
 
   const [output, setOutput] = useState("Output will appear here.")
-
   const [isCompiling, setIsCompiling] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
+  const [moduleId, setModuleId] = useState(null)
 
-  const handleCompile = () => {
+  const handleCompile = async () => {
     setIsCompiling(true)
-    setOutput("Compilation is waiting for the backend compile API...")
+    setOutput("Compiling...")
 
-    setTimeout(() => {
+    try {
+      const result = await compileCode(code)
+
+      if (result.success) {
+        // Temporary WASM module provided by the backend
+        setModuleId("test.wasm")
+
+        setOutput(
+          `Compilation successful.\n\nCompiler output:\n${result.stdout || ""}`
+        )
+      } else {
+        setOutput(
+          `Compilation failed.\n\n${
+            result.error || result.stderr || "Unknown error"
+          }`
+        )
+      }
+    } catch (error) {
+      setOutput(`Compilation failed:\n${error.message}`)
+    } finally {
       setIsCompiling(false)
-    }, 1000)
+    }
   }
 
   const handleRun = async () => {
+    if (!moduleId) {
+      setOutput("Please compile the code first.")
+      return
+    }
+
     setIsRunning(true)
     setOutput("Running...")
 
     try {
-      const result = await runCode("test.wasm", 10, 20)
+      const result = await runCode(moduleId, 10, 20)
 
       if (result.stderr) {
         setOutput(
@@ -57,7 +81,7 @@ function App() {
 
           <button
             onClick={handleRun}
-            disabled={isCompiling || isRunning}
+            disabled={isCompiling || isRunning || !moduleId}
           >
             {isRunning ? "Running..." : "Run"}
           </button>
