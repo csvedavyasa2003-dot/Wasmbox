@@ -19,7 +19,7 @@ function App() {
   const [isRunning, setIsRunning] = useState(false)
   const [moduleId, setModuleId] = useState(null)
 
-  // Phase 3 - Day 1: Execution Metrics
+  // Phase 3 - Day 3: Backend Metrics
   const [metrics, setMetrics] = useState({
     executionTimeMs: 0,
     memoryUsedMb: 0,
@@ -27,7 +27,6 @@ function App() {
     status: "Ready",
   })
 
-  // Phase 3 - Day 2: Security Violation
   const [violationDetail, setViolationDetail] = useState(null)
 
   const handleCompile = async () => {
@@ -54,26 +53,22 @@ function App() {
       } else {
         setOutput(
           `Compilation failed.\n\n${
-            result.error || result.stderr || "Unknown error"
+            result.error ||
+            result.stderr ||
+            "Unknown error"
           }`
         )
 
-        const errorMessage = (
-          result.error ||
-          result.stderr ||
-          ""
-        ).toLowerCase()
-
         if (
-          errorMessage.includes("restricted") ||
-          errorMessage.includes("not allowed")
+          result.error?.toLowerCase().includes("restricted") ||
+          result.stderr?.toLowerCase().includes("restricted")
         ) {
           setViolationDetail({
             type: "BLOCKED",
             message:
               result.error ||
               result.stderr ||
-              "Restricted operation was blocked by the sandbox.",
+              "Restricted operation blocked.",
           })
 
           setMetrics((previous) => ({
@@ -83,7 +78,9 @@ function App() {
         }
       }
     } catch (error) {
-      setOutput(`Compilation failed:\n${error.message}`)
+      setOutput(
+        `Compilation failed:\n${error.message}`
+      )
     } finally {
       setIsCompiling(false)
     }
@@ -107,63 +104,65 @@ function App() {
     })
 
     try {
-      const result = await runCode(moduleId, 10, 20)
+      const result = await runCode(
+        moduleId,
+        10,
+        20
+      )
+
+      // Phase 3 - Day 3
+      // Read execution metrics from backend
+      const executionTimeMs =
+        Number(result.execution_time_ms) || 0
+
+      const memoryBytes =
+        Number(result.memory_bytes) || 0
+
+      // Convert bytes to MB
+      const memoryUsedMb = Number(
+        (memoryBytes / (1024 * 1024)).toFixed(2)
+      )
+
+      const securityStatus =
+        result.security_status || "CLEAN"
+
+      setMetrics({
+        executionTimeMs,
+        memoryUsedMb,
+        memoryLimitMb: 128,
+        status: securityStatus,
+      })
 
       if (result.stderr) {
         setOutput(
           `stdout:\n${result.stdout || ""}\n\nstderr:\n${result.stderr}`
         )
       } else {
-        setOutput(`stdout:\n${result.stdout || ""}`)
+        setOutput(
+          `stdout:\n${result.stdout || ""}`
+        )
       }
 
-      const backendError = (
-        result.error ||
-        result.stderr ||
-        ""
-      ).toLowerCase()
-
-      if (
-        backendError.includes("timeout") ||
-        backendError.includes("time limit")
-      ) {
+      if (securityStatus !== "CLEAN") {
         setViolationDetail({
-          type: "TIMEOUT",
-          message: "Execution exceeded the allowed time limit.",
+          type: securityStatus,
+          message:
+            result.stderr ||
+            result.error ||
+            "Sandbox security policy was triggered.",
         })
-
-        setMetrics((previous) => ({
-          ...previous,
-          status: "TIMEOUT",
-        }))
-      } else if (
-        backendError.includes("memory") ||
-        backendError.includes("out of memory") ||
-        backendError.includes("oom")
-      ) {
-        setViolationDetail({
-          type: "OOM",
-          message: "Execution exceeded the allowed memory limit.",
-        })
-
-        setMetrics((previous) => ({
-          ...previous,
-          status: "OOM",
-        }))
       } else {
         setViolationDetail(null)
-
-        setMetrics((previous) => ({
-          ...previous,
-          status: "Completed",
-        }))
       }
+
     } catch (error) {
-      setOutput(`Execution failed:\n${error.message}`)
+      setOutput(
+        `Execution failed:\n${error.message}`
+      )
 
       setViolationDetail({
         type: "BLOCKED",
-        message: error.message || "Execution failed.",
+        message: error.message,
       })
 
       setMetrics((previous) => ({
@@ -175,7 +174,6 @@ function App() {
     }
   }
 
-  // Reset metrics and security status when code is edited
   const handleCodeChange = (value) => {
     setCode(value || "")
 
@@ -191,6 +189,7 @@ function App() {
 
   return (
     <div className="app">
+
       <header className="header">
         <h1>WasmBox</h1>
 
@@ -199,23 +198,33 @@ function App() {
             onClick={handleCompile}
             disabled={isCompiling || isRunning}
           >
-            {isCompiling ? "Compiling..." : "Compile"}
+            {isCompiling
+              ? "Compiling..."
+              : "Compile"}
           </button>
 
           <button
             onClick={handleRun}
-            disabled={isCompiling || isRunning || !moduleId}
+            disabled={
+              isCompiling ||
+              isRunning ||
+              !moduleId
+            }
           >
-            {isRunning ? "Running..." : "Run"}
+            {isRunning
+              ? "Running..."
+              : "Run"}
           </button>
         </div>
       </header>
 
       <main className="main-content">
+
         <div className="workspace">
 
           {/* Monaco Editor */}
           <div className="editor-container">
+
             <Editor
               height="100%"
               language="python"
@@ -230,6 +239,7 @@ function App() {
                 automaticLayout: true,
               }}
             />
+
           </div>
 
           {/* Output Panel */}
@@ -239,6 +249,7 @@ function App() {
             <div className="metrics-banner">
 
               <div className="metric-item">
+
                 <Clock size={18} />
 
                 <div>
@@ -250,9 +261,12 @@ function App() {
                     {metrics.executionTimeMs} ms
                   </span>
                 </div>
+
               </div>
 
+
               <div className="metric-item">
+
                 <MemoryStick size={18} />
 
                 <div>
@@ -265,7 +279,9 @@ function App() {
                     {metrics.memoryLimitMb} MB
                   </span>
                 </div>
+
               </div>
+
 
               <div
                 className={`metric-item ${
@@ -274,6 +290,7 @@ function App() {
                     : "sandbox-clean"
                 }`}
               >
+
                 {violationDetail ? (
                   <ShieldAlert size={18} />
                 ) : (
@@ -289,18 +306,22 @@ function App() {
                     {metrics.status}
                   </span>
                 </div>
+
               </div>
 
             </div>
 
+
             {/* Security Alert */}
             {violationDetail && (
               <div className="security-alert">
+
                 <div className="security-alert-icon">
                   <ShieldAlert size={20} />
                 </div>
 
                 <div className="security-alert-content">
+
                   <div className="security-alert-title">
                     Sandbox Violation Detected
                   </div>
@@ -308,27 +329,31 @@ function App() {
                   <div className="security-alert-message">
                     {violationDetail.message}
                   </div>
+
                 </div>
 
                 <div className="security-badge">
                   {violationDetail.type}
                 </div>
+
               </div>
             )}
 
-            {/* Output Header */}
+
             <div className="output-header">
               Output
             </div>
 
-            {/* Output */}
             <div className="output-content">
               <pre>{output}</pre>
             </div>
 
           </div>
+
         </div>
+
       </main>
+
     </div>
   )
 }
