@@ -1,5 +1,6 @@
 import { useState } from "react"
 import Editor from "@monaco-editor/react"
+import { Clock, MemoryStick, ShieldCheck } from "lucide-react"
 import { compileCode, runCode } from "./services/api"
 
 function App() {
@@ -11,6 +12,14 @@ function App() {
   const [isCompiling, setIsCompiling] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [moduleId, setModuleId] = useState(null)
+
+  // Phase 3 - Day 1: Execution Metrics
+  const [metrics, setMetrics] = useState({
+    executionTimeMs: 0,
+    memoryUsedMb: 0,
+    memoryLimitMb: 128,
+    status: "Ready",
+  })
 
   const handleCompile = async () => {
     setIsCompiling(true)
@@ -24,7 +33,9 @@ function App() {
         setModuleId("test.wasm")
 
         setOutput(
-          `Compilation successful.\n\nCompiler output:\n${result.stdout || ""}`
+          `Compilation successful.\n\nCompiler output:\n${
+            result.stdout || ""
+          }`
         )
       } else {
         setOutput(
@@ -49,6 +60,14 @@ function App() {
     setIsRunning(true)
     setOutput("Running...")
 
+    // Reset metrics before execution
+    setMetrics({
+      executionTimeMs: 0,
+      memoryUsedMb: 0,
+      memoryLimitMb: 128,
+      status: "Running",
+    })
+
     try {
       const result = await runCode(moduleId, 10, 20)
 
@@ -59,11 +78,36 @@ function App() {
       } else {
         setOutput(`stdout:\n${result.stdout || ""}`)
       }
+
+      // Phase 3 - Day 1
+      // Backend metrics will be connected in Day 3.
+      // For now, show a basic completed state.
+      setMetrics((previous) => ({
+        ...previous,
+        status: "Completed",
+      }))
     } catch (error) {
       setOutput(`Execution failed:\n${error.message}`)
+
+      setMetrics((previous) => ({
+        ...previous,
+        status: "Failed",
+      }))
     } finally {
       setIsRunning(false)
     }
+  }
+
+  // Reset metrics whenever Monaco code is edited
+  const handleCodeChange = (value) => {
+    setCode(value || "")
+
+    setMetrics({
+      executionTimeMs: 0,
+      memoryUsedMb: 0,
+      memoryLimitMb: 128,
+      status: "Ready",
+    })
   }
 
   return (
@@ -90,24 +134,73 @@ function App() {
 
       <main className="main-content">
         <div className="workspace">
+
+          {/* Monaco Editor */}
           <div className="editor-container">
             <Editor
               height="100%"
               language="python"
               theme="vs-dark"
               value={code}
-              onChange={(value) => setCode(value || "")}
+              onChange={handleCodeChange}
             />
           </div>
 
+          {/* Output / Terminal Section */}
           <div className="output-panel">
+
+            {/* Phase 3 - Day 1: Metrics Banner */}
+            <div className="metrics-banner">
+
+              <div className="metric-item">
+                <Clock size={18} />
+                <div>
+                  <span className="metric-label">
+                    Execution Time
+                  </span>
+                  <span className="metric-value">
+                    {metrics.executionTimeMs} ms
+                  </span>
+                </div>
+              </div>
+
+              <div className="metric-item">
+                <MemoryStick size={18} />
+                <div>
+                  <span className="metric-label">
+                    Memory
+                  </span>
+                  <span className="metric-value">
+                    {metrics.memoryUsedMb} MB /{" "}
+                    {metrics.memoryLimitMb} MB
+                  </span>
+                </div>
+              </div>
+
+              <div className="metric-item">
+                <ShieldCheck size={18} />
+                <div>
+                  <span className="metric-label">
+                    Sandbox
+                  </span>
+                  <span className="metric-value">
+                    {metrics.status}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Output Header */}
             <div className="output-header">
               Output
             </div>
 
+            {/* Output Content */}
             <div className="output-content">
               <pre>{output}</pre>
             </div>
+
           </div>
         </div>
       </main>
