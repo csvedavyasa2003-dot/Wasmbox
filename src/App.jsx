@@ -1,6 +1,12 @@
 import { useState } from "react"
+import "./App.css"
 import Editor from "@monaco-editor/react"
-import { Clock, MemoryStick, ShieldCheck } from "lucide-react"
+import {
+  Clock,
+  MemoryStick,
+  ShieldCheck,
+  ShieldAlert,
+} from "lucide-react"
 import { compileCode, runCode } from "./services/api"
 
 function App() {
@@ -21,15 +27,18 @@ function App() {
     status: "Ready",
   })
 
+  // Phase 3 - Day 2: Security Violation
+  const [violationDetail, setViolationDetail] = useState(null)
+
   const handleCompile = async () => {
     setIsCompiling(true)
     setOutput("Compiling...")
+    setViolationDetail(null)
 
     try {
       const result = await compileCode(code)
 
       if (result.success) {
-        // Temporary WASM module provided by the backend
         setModuleId("test.wasm")
 
         setOutput(
@@ -37,12 +46,41 @@ function App() {
             result.stdout || ""
           }`
         )
+
+        setMetrics((previous) => ({
+          ...previous,
+          status: "Ready",
+        }))
       } else {
         setOutput(
           `Compilation failed.\n\n${
             result.error || result.stderr || "Unknown error"
           }`
         )
+
+        const errorMessage = (
+          result.error ||
+          result.stderr ||
+          ""
+        ).toLowerCase()
+
+        if (
+          errorMessage.includes("restricted") ||
+          errorMessage.includes("not allowed")
+        ) {
+          setViolationDetail({
+            type: "BLOCKED",
+            message:
+              result.error ||
+              result.stderr ||
+              "Restricted operation was blocked by the sandbox.",
+          })
+
+          setMetrics((previous) => ({
+            ...previous,
+            status: "BLOCKED",
+          }))
+        }
       }
     } catch (error) {
       setOutput(`Compilation failed:\n${error.message}`)
@@ -59,8 +97,8 @@ function App() {
 
     setIsRunning(true)
     setOutput("Running...")
+    setViolationDetail(null)
 
-    // Reset metrics before execution
     setMetrics({
       executionTimeMs: 0,
       memoryUsedMb: 0,
@@ -79,26 +117,65 @@ function App() {
         setOutput(`stdout:\n${result.stdout || ""}`)
       }
 
-      // Phase 3 - Day 1
-      // Backend metrics will be connected in Day 3.
-      // For now, show a basic completed state.
-      setMetrics((previous) => ({
-        ...previous,
-        status: "Completed",
-      }))
+      const backendError = (
+        result.error ||
+        result.stderr ||
+        ""
+      ).toLowerCase()
+
+      if (
+        backendError.includes("timeout") ||
+        backendError.includes("time limit")
+      ) {
+        setViolationDetail({
+          type: "TIMEOUT",
+          message: "Execution exceeded the allowed time limit.",
+        })
+
+        setMetrics((previous) => ({
+          ...previous,
+          status: "TIMEOUT",
+        }))
+      } else if (
+        backendError.includes("memory") ||
+        backendError.includes("out of memory") ||
+        backendError.includes("oom")
+      ) {
+        setViolationDetail({
+          type: "OOM",
+          message: "Execution exceeded the allowed memory limit.",
+        })
+
+        setMetrics((previous) => ({
+          ...previous,
+          status: "OOM",
+        }))
+      } else {
+        setViolationDetail(null)
+
+        setMetrics((previous) => ({
+          ...previous,
+          status: "Completed",
+        }))
+      }
     } catch (error) {
       setOutput(`Execution failed:\n${error.message}`)
 
+      setViolationDetail({
+        type: "BLOCKED",
+        message: error.message || "Execution failed.",
+      })
+
       setMetrics((previous) => ({
         ...previous,
-        status: "Failed",
+        status: "BLOCKED",
       }))
     } finally {
       setIsRunning(false)
     }
   }
 
-  // Reset metrics whenever Monaco code is edited
+  // Reset metrics and security status when code is edited
   const handleCodeChange = (value) => {
     setCode(value || "")
 
@@ -108,6 +185,8 @@ function App() {
       memoryLimitMb: 128,
       status: "Ready",
     })
+
+    setViolationDetail(null)
   }
 
   return (
@@ -143,21 +222,30 @@ function App() {
               theme="vs-dark"
               value={code}
               onChange={handleCodeChange}
+              options={{
+                minimap: {
+                  enabled: false,
+                },
+                fontSize: 14,
+                automaticLayout: true,
+              }}
             />
           </div>
 
-          {/* Output / Terminal Section */}
+          {/* Output Panel */}
           <div className="output-panel">
 
-            {/* Phase 3 - Day 1: Metrics Banner */}
+            {/* Metrics Banner */}
             <div className="metrics-banner">
 
               <div className="metric-item">
                 <Clock size={18} />
+
                 <div>
                   <span className="metric-label">
                     Execution Time
                   </span>
+
                   <span className="metric-value">
                     {metrics.executionTimeMs} ms
                   </span>
@@ -166,10 +254,12 @@ function App() {
 
               <div className="metric-item">
                 <MemoryStick size={18} />
+
                 <div>
                   <span className="metric-label">
                     Memory
                   </span>
+
                   <span className="metric-value">
                     {metrics.memoryUsedMb} MB /{" "}
                     {metrics.memoryLimitMb} MB
@@ -177,12 +267,24 @@ function App() {
                 </div>
               </div>
 
-              <div className="metric-item">
-                <ShieldCheck size={18} />
+              <div
+                className={`metric-item ${
+                  violationDetail
+                    ? "sandbox-violation"
+                    : "sandbox-clean"
+                }`}
+              >
+                {violationDetail ? (
+                  <ShieldAlert size={18} />
+                ) : (
+                  <ShieldCheck size={18} />
+                )}
+
                 <div>
                   <span className="metric-label">
                     Sandbox
                   </span>
+
                   <span className="metric-value">
                     {metrics.status}
                   </span>
@@ -191,12 +293,35 @@ function App() {
 
             </div>
 
+            {/* Security Alert */}
+            {violationDetail && (
+              <div className="security-alert">
+                <div className="security-alert-icon">
+                  <ShieldAlert size={20} />
+                </div>
+
+                <div className="security-alert-content">
+                  <div className="security-alert-title">
+                    Sandbox Violation Detected
+                  </div>
+
+                  <div className="security-alert-message">
+                    {violationDetail.message}
+                  </div>
+                </div>
+
+                <div className="security-badge">
+                  {violationDetail.type}
+                </div>
+              </div>
+            )}
+
             {/* Output Header */}
             <div className="output-header">
               Output
             </div>
 
-            {/* Output Content */}
+            {/* Output */}
             <div className="output-content">
               <pre>{output}</pre>
             </div>
