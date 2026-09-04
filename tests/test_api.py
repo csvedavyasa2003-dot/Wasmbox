@@ -96,3 +96,74 @@ def test_run_wasm_module():
     assert data["module_id"] == "test.wasm"
     assert data["stdout"] == "30"
     assert data["stderr"] == ""
+
+def test_compile_restricted_os_import():
+    response = client.post(
+        "/api/compile/",
+        json={"code": "import os\nos.listdir('/')"}
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is False
+    assert data["output"] == ""
+    assert data["error"] == "Restricted import not allowed: os"
+
+
+def test_compile_restricted_socket_import():
+    response = client.post(
+        "/api/compile/",
+        json={"code": "import socket"}
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is False
+    assert data["error"] == "Restricted import not allowed: socket"
+
+
+def test_compile_restricted_subprocess_import():
+    response = client.post(
+        "/api/compile/",
+        json={"code": "import subprocess"}
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is False
+    assert data["error"] == "Restricted import not allowed: subprocess"
+
+
+def test_compile_restricted_from_import():
+    response = client.post(
+        "/api/compile/",
+        json={"code": "from os import listdir"}
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is False
+    assert data["error"] == "Restricted import not allowed: os"
+
+
+def test_compile_syntax_error():
+    response = client.post(
+        "/api/compile/",
+        json={"code": "print(10 /"}
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is False
+    assert data["output"] == ""
+    assert data["error"].startswith("Syntax error:")
