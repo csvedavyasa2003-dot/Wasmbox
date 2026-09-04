@@ -1,6 +1,7 @@
 import { useState } from "react"
 import Editor from "@monaco-editor/react"
-import { runCode } from "./services/api"
+
+import { compileCode, runCode } from "./services/api"
 
 function App() {
   const [code, setCode] = useState(
@@ -12,14 +13,24 @@ function App() {
   const [isCompiling, setIsCompiling] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
 
-  const handleCompile = () => {
-    setIsCompiling(true)
-    setOutput("Compilation is waiting for the backend compile API...")
+  const handleCompile = async () => {
+  setIsCompiling(true)
+  setOutput("Compiling...")
 
-    setTimeout(() => {
-      setIsCompiling(false)
-    }, 1000)
+  try {
+    const result = await compileCode(code)
+
+    if (result.success) {
+      setOutput(`Compilation successful:\n\n${result.output || "No output"}`)
+    } else {
+      setOutput(`Compilation failed:\n\n${result.error || "Unknown error"}`)
+    }
+  } catch (error) {
+    setOutput(`Compilation failed:\n\n${error.message}`)
+  } finally {
+    setIsCompiling(false)
   }
+}
 
   const handleRun = async () => {
     setIsRunning(true)
