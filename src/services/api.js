@@ -1,7 +1,7 @@
-const API_BASE_URL = "http://127.0.0.1:8000"
+const API_BASE_URL = "http://localhost:8000"
 
 export async function compileCode(code) {
-  const response = await fetch(`${API_BASE_URL}/api/compile/`, {
+  const response = await fetch(`${API_BASE_URL}/api/compile`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -16,14 +16,16 @@ export async function compileCode(code) {
   return response.json()
 }
 
-export async function runCode(moduleId) {
-  const response = await fetch(`${API_BASE_URL}/api/execute/`, {
+export async function runCode(moduleId, a, b) {
+  const response = await fetch(`${API_BASE_URL}/api/run`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       module_id: moduleId,
+      a,
+      b,
     }),
   })
 
