@@ -1,5 +1,8 @@
 from wasmtime import Store, Module, Instance
 
+MAX_MEMORY_MB = 10
+EXECUTION_TIMEOUT_SECONDS = 5
+
 
 def run_uploaded_wasm(file_path: str, a: int, b: int):
     store = Store()
