@@ -1,10 +1,22 @@
-from wasmtime import Store, Module, Instance
+import time
+
+import wasmtime
+
+
+MAX_FUEL = 100_000
 
 
 def run_uploaded_wasm(file_path: str, a: int, b: int):
-    store = Store()
+    config = wasmtime.Config()
+    config.consume_fuel = True
 
-    module = Module.from_file(store.engine, file_path)
+    engine = wasmtime.Engine(config)
+    store = wasmtime.Store(engine)
+
+    # Limit the amount of WebAssembly execution.
+    store.set_fuel(MAX_FUEL)
+
+    module = wasmtime.Module.from_file(engine, file_path)
 
     # Security policy: deny all host imports.
     # This prevents the WASM module from receiving host capabilities
@@ -17,10 +29,32 @@ def run_uploaded_wasm(file_path: str, a: int, b: int):
             "Filesystem and network access are denied."
         )
 
-    instance = Instance(store, module, [])
+    start_time = time.perf_counter()
 
-    add = instance.exports(store)["add"]
+    try:
+        instance = wasmtime.Instance(store, module, [])
 
-    result = add(store, a, b)
+        add = instance.exports(store)["add"]
+        result = add(store, a, b)
 
-    return result
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+        remaining_fuel = store.get_fuel()
+        fuel_consumed = MAX_FUEL - remaining_fuel
+
+        return {
+            "result": result,
+            "execution_time_ms": round(elapsed_ms, 3),
+            "fuel_consumed": fuel_consumed,
+            "status": "success",
+        }
+
+    except (wasmtime.WasmtimeError, wasmtime.Trap) as error:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        return {
+            "result": None,
+            "execution_time_ms": round(elapsed_ms, 3),
+            "fuel_consumed": MAX_FUEL - store.get_fuel(),
+            "status": "resource_limit",
+            "error": str(error),
+        }

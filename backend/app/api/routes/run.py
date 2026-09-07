@@ -25,14 +25,32 @@ def run_module(data: RunRequest):
             detail=f"Module not found: {data.module_id}"
         )
 
-    result = run_uploaded_wasm(
-        str(file_path),
-        data.a,
-        data.b
-    )
+    try:
+        result = run_uploaded_wasm(
+            str(file_path),
+            data.a,
+            data.b
+        )
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=403,
+            detail=str(error)
+        )
 
-    return {
+    response = {
         "module_id": data.module_id,
-        "stdout": str(result),
-        "stderr": ""
+        "stdout": (
+            str(result["result"])
+            if result["result"] is not None
+            else ""
+        ),
+        "stderr": "",
+        "status": result["status"],
+        "execution_time_ms": result["execution_time_ms"],
+        "fuel_consumed": result["fuel_consumed"],
     }
+
+    if result.get("error"):
+        response["stderr"] = result["error"]
+
+    return response
