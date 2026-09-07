@@ -1,9 +1,21 @@
 from wasmtime import Store, Module, Instance
+import os
 
-def run_uploaded_wasm(file_path: str, a: int, b: int):
+
+def run_uploaded_wasm(module_id: str, a: int, b: int):
+
     store = Store()
 
-    module = Module.from_file(store.engine, file_path)
+    file_path = os.path.join(
+        "backend",
+        "uploads",
+        module_id
+    )
+
+    module = Module.from_file(
+        store.engine,
+        file_path
+    )
 
     instance = Instance(store, module, [])
 
