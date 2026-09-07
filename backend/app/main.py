@@ -44,7 +44,7 @@ def write_log(module_id, a, b, output, execution_time):
         )
 
 # -----------------------------
-# Home API
+# Home
 # -----------------------------
 @app.get("/")
 def home():
@@ -62,6 +62,7 @@ def health():
 # -----------------------------
 @app.post("/upload-wasm")
 async def upload_wasm(file: UploadFile = File(...)):
+
     file_path = os.path.join(UPLOAD_DIR, file.filename)
 
     with open(file_path, "wb") as buffer:
@@ -73,12 +74,31 @@ async def upload_wasm(file: UploadFile = File(...)):
     }
 
 # -----------------------------
-# Phase 2 Run API
+# Run WASM Module
 # -----------------------------
 @app.post("/api/run")
 def run_module(request: RunRequest):
 
     try:
+
+        # Validation
+        if not request.module_id:
+            return {
+                "stdout": "",
+                "stderr": "module_id cannot be empty"
+            }
+
+        wasm_path = os.path.join(
+            UPLOAD_DIR,
+            request.module_id
+        )
+
+        if not os.path.exists(wasm_path):
+            return {
+                "stdout": "",
+                "stderr": f"WASM file '{request.module_id}' not found"
+            }
+
         start_time = time.time()
 
         result = run_uploaded_wasm(
@@ -113,25 +133,28 @@ def run_module(request: RunRequest):
             "stderr": str(e)
         }
 
+# -----------------------------
+# Execution History
+# -----------------------------
 @app.get("/api/history")
 def get_history():
 
-    log_file = "backend/logs/execution.log"
+    log_path = "backend/logs/execution.log"
 
-    if not os.path.exists(log_file):
+    if not os.path.exists(log_path):
         return []
 
     history = []
 
-    with open(log_file, "r") as file:
-        lines = file.readlines()
-
-    for line in lines:
-        history.append(line.strip())
+    with open(log_path, "r") as log:
+        for line in log.readlines():
+            history.append(line.strip())
 
     return history
 
-
+# -----------------------------
+# Metrics API
+# -----------------------------
 @app.get("/api/metrics")
 def get_metrics():
 
@@ -162,8 +185,7 @@ def get_metrics():
 
     average_time = (
         sum(execution_times) / len(execution_times)
-        if execution_times
-        else 0
+        if execution_times else 0
     )
 
     return {
