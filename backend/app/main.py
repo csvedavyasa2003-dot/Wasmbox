@@ -112,3 +112,64 @@ def run_module(request: RunRequest):
             "stdout": "",
             "stderr": str(e)
         }
+
+@app.get("/api/history")
+def get_history():
+
+    log_file = "backend/logs/execution.log"
+
+    if not os.path.exists(log_file):
+        return []
+
+    history = []
+
+    with open(log_file, "r") as file:
+        lines = file.readlines()
+
+    for line in lines:
+        history.append(line.strip())
+
+    return history
+
+
+@app.get("/api/metrics")
+def get_metrics():
+
+    log_path = "backend/logs/execution.log"
+
+    if not os.path.exists(log_path):
+        return {
+            "total_runs": 0,
+            "average_execution_time_ms": 0
+        }
+
+    with open(log_path, "r") as log:
+        lines = log.readlines()
+
+    total_runs = len(lines)
+
+    execution_times = []
+
+    for line in lines:
+        try:
+            time_part = line.split("Time=")[1]
+            execution_time = float(
+                time_part.replace(" ms", "").strip()
+            )
+            execution_times.append(execution_time)
+        except:
+            pass
+
+    average_time = (
+        sum(execution_times) / len(execution_times)
+        if execution_times
+        else 0
+    )
+
+    return {
+        "total_runs": total_runs,
+        "average_execution_time_ms": round(
+            average_time,
+            2
+        )
+    }
