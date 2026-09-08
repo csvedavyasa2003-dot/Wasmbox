@@ -1,13 +1,25 @@
-from wasmtime import Store, Module, Instance
+import threading
+from wasmtime import Config, Engine, Store, Module, Instance
+
 
 MAX_MEMORY_MB = 10
 EXECUTION_TIMEOUT_SECONDS = 5
 
 
 def run_uploaded_wasm(file_path: str, a: int, b: int):
-    store = Store()
 
-    module = Module.from_file(store.engine, file_path)
+    # Configure Wasmtime
+    config = Config()
+    config.epoch_interruption = True
+
+    engine = Engine(config)
+    store = Store(engine)
+
+    # Set execution deadline
+    store.set_epoch_deadline(1)
+
+    # Load WASM module
+    module = Module.from_file(engine, file_path)
 
     # Security policy: deny all host imports.
     # This prevents the WASM module from receiving host capabilities
@@ -20,10 +32,44 @@ def run_uploaded_wasm(file_path: str, a: int, b: int):
             "Filesystem and network access are denied."
         )
 
-    instance = Instance(store, module, [])
+    # Create timeout event
+    timeout_triggered = threading.Event()
 
-    add = instance.exports(store)["add"]
+    def timeout_worker():
+        if not timeout_triggered.wait(EXECUTION_TIMEOUT_SECONDS):
+            timeout_triggered.set()
+            engine.increment_epoch()
 
-    result = add(store, a, b)
+    # Start timeout watcher
+    timeout_thread = threading.Thread(
+        target=timeout_worker,
+        daemon=True
+    )
 
-    return result
+    timeout_thread.start()
+
+    try:
+        # Create WASM instance
+        instance = Instance(store, module, [])
+
+        # Get the add function
+        add = instance.exports(store)["add"]
+
+        # Execute WASM function
+        result = add(store, a, b)
+
+        return result
+
+    except Exception as exc:
+
+        if timeout_triggered.is_set():
+            raise TimeoutError(
+                f"WASM execution exceeded "
+                f"{EXECUTION_TIMEOUT_SECONDS} seconds."
+            ) from exc
+
+        raise
+
+    finally:
+        # Stop timeout watcher when execution finishes
+        timeout_triggered.set()
