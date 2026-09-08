@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.api.routes import compile, execute, plugins, run
+from backend.app.api.routes import compile, execute, plugins, run, run_component
 
 
 app = FastAPI(
@@ -40,3 +40,4 @@ app.include_router(compile.router)
 app.include_router(execute.router)
 app.include_router(plugins.router)
 app.include_router(run.router)
+app.include_router(run_component.router)
