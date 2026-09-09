@@ -46,7 +46,14 @@ def test_plugins():
     data = response.json()
 
     assert data["success"] is True
-    assert data["plugins"] == []
+    assert isinstance(data["plugins"], list)
+
+    plugin_ids = {
+        plugin["module_id"]
+        for plugin in data["plugins"]
+    }
+
+    assert "test.wasm" in plugin_ids
 
 
 def test_compile_success():
@@ -440,3 +447,52 @@ class WitWorld(wit_world.WitWorld):
 
     assert data["success"] is False
     assert "compilation" in data["error"].lower() or "syntax" in data["error"].lower()
+def test_get_plugin_success():
+    response = client.get("/api/plugins/test.wasm")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["module_id"] == "test.wasm"
+    assert data["size_bytes"] > 0
+
+
+def test_get_plugin_missing():
+    response = client.get("/api/plugins/missing.wasm")
+
+    assert response.status_code == 404
+    assert "Plugin not found" in response.json()["detail"]
+
+
+def test_get_plugin_invalid_extension():
+    response = client.get("/api/plugins/test.txt")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Only .wasm plugins are supported."
+    )
+
+
+def test_get_plugin_path_traversal():
+    response = client.get(
+        "/api/plugins/../test.wasm"
+    )
+
+    assert response.status_code in (400, 404)
+
+
+def test_run_component_invalid_extension():
+    response = client.post(
+        "/api/run-component",
+        json={
+            "module_id": "test.txt",
+            "name": "Vedavyasa",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Only .wasm plugins are supported."
+    )
