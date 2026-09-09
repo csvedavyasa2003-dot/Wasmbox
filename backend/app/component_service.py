@@ -4,6 +4,10 @@ from pathlib import Path
 from wasmtime import Config, Engine, Store
 from wasmtime.component import Component, Linker
 
+from backend.app.services.security_service import (
+    validate_component_security,
+)
+
 
 def run_component(file_path: str, name: str) -> dict:
     """
@@ -42,6 +46,9 @@ def run_component(file_path: str, name: str) -> dict:
         # Load the WebAssembly Component.
         component = Component.from_file(engine, str(path))
 
+        # Validate the component's security.
+        validate_component_security(component, engine)
+
         # Create a restricted linker.
         # No host functions are registered here.
         linker = Linker(engine)
@@ -61,6 +68,16 @@ def run_component(file_path: str, name: str) -> dict:
             "result": result,
             "execution_time_ms": round(elapsed_ms, 3),
             "status": "success",
+        }
+
+    except PermissionError as error:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+        return {
+            "result": None,
+            "execution_time_ms": round(elapsed_ms, 3),
+            "status": "security_violation",
+            "error": str(error),
         }
 
     except Exception as error:

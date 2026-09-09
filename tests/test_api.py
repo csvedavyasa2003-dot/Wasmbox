@@ -4,7 +4,9 @@ import shutil
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
-
+from backend.app.services.security_service import (
+    validate_component_security,
+)
 
 client = TestClient(app)
 WASM_MODULES_DIR = Path(__file__).resolve().parents[1] / "backend" / "wasm_modules"
@@ -496,3 +498,21 @@ def test_run_component_invalid_extension():
     assert response.json()["detail"] == (
         "Only .wasm plugins are supported."
     )
+
+def test_component_security_rejects_imports():
+    class FakeComponentType:
+        def imports(self, engine):
+            return {
+                "wasi:filesystem/types": object(),
+            }
+
+    class FakeComponent:
+        type = FakeComponentType()
+
+    component = FakeComponent()
+
+    try:
+        validate_component_security(component, None)
+        assert False, "Expected PermissionError"
+    except PermissionError as error:
+        assert "unauthorized host capabilities" in str(error)
