@@ -384,3 +384,59 @@ def test_run_component_missing_module():
     )
 
     assert response.status_code == 404
+
+def test_compile_component_success():
+    source = """
+import wit_world
+
+class WitWorld(wit_world.WitWorld):
+    def greet(self, name: str) -> str:
+        return f"Hello, {name}!"
+"""
+
+    response = client.post(
+        "/api/compile-component",
+        json={
+            "module_id": "test-compiled-component.wasm",
+            "code": source,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["module_id"] == "test-compiled-component.wasm"
+    assert data["size_bytes"] > 0
+
+    output_path = Path(data["output"])
+
+    assert output_path.exists()
+
+    output_path.unlink(missing_ok=True)
+
+
+def test_compile_component_invalid_python():
+    source = """
+import wit_world
+
+class WitWorld(wit_world.WitWorld):
+    def greet(self, name: str) -> str
+        return f"Hello, {name}!"
+"""
+
+    response = client.post(
+        "/api/compile-component",
+        json={
+            "module_id": "invalid-component.wasm",
+            "code": source,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is False
+    assert "compilation" in data["error"].lower() or "syntax" in data["error"].lower()

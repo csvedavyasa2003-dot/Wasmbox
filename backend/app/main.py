@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.api.routes import compile, execute, plugins, run, run_component
-
-
+from backend.app.api.routes import (
+    compile,
+    compile_component,
+    execute,
+    plugins,
+    run,
+    run_component,
+)
 app = FastAPI(
     title="WasmBox API",
     description="Secure multi-tenant WebAssembly plugin sandbox",
@@ -41,3 +46,4 @@ app.include_router(execute.router)
 app.include_router(plugins.router)
 app.include_router(run.router)
 app.include_router(run_component.router)
+app.include_router(compile_component.router)
