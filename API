@@ -1,0 +1,100 @@
+# WasmBox API reference
+
+All tenant-scoped endpoints require an Authorization header containing Bearer followed by the signed demo token returned from the demo-login endpoint.
+
+## Login
+
+POST /api/auth/demo-login
+
+~~~json
+{ "tenant_slug": "acme-demo" }
+~~~
+
+Response:
+
+~~~json
+{ "access_token": "signed-token", "token_type": "bearer" }
+~~~
+
+## Create and compile a plugin
+
+POST /api/plugins
+
+~~~json
+{
+  "name": "Invoice formatter",
+  "source": "def transform(input):\n    return {\"total\": input[\"amount\"] * 1.18}\n"
+}
+~~~
+
+The create response includes a webhook secret once. Normal GET and list responses deliberately do not return it.
+
+POST /api/plugins/{plugin_id}/compile validates source, lowers it to WAT/Wasm, validates imports and memory declaration, and persists the artifact.
+
+## Run a plugin
+
+POST /api/plugins/{plugin_id}/run
+
+~~~json
+{ "input": { "amount": 1000 } }
+~~~
+
+Success response:
+
+~~~json
+{
+  "id": "run-id",
+  "status": "succeeded",
+  "stdout": "Invoice formatting started",
+  "output": { "total": 1180.0 },
+  "error": null,
+  "metrics": {
+    "execution_ms": 0.84,
+    "fuel_consumed": 142,
+    "linear_memory_bytes": 65536,
+    "memory_limit_bytes": 10485760
+  },
+  "trigger": "manual"
+}
+~~~
+
+Metrics values are examples; never copy them into a report as a benchmark result.
+
+## Simulated webhook
+
+POST /api/plugins/{plugin_id}/trigger has the same input body as /run and records trigger as simulated-webhook. It exists so the portal can demonstrate event-driven execution without exposing a real internet endpoint.
+
+## Signed webhook
+
+POST /api/webhooks/{plugin_id}
+
+Headers:
+
+~~~text
+Content-Type: application/json
+X-WasmBox-Timestamp: unix-seconds
+X-WasmBox-Signature: sha256=<HMAC-SHA256>
+~~~
+
+The HMAC is calculated with the one-time webhook secret over this byte sequence:
+
+~~~text
+ASCII(timestamp) + "." + raw HTTP request body
+~~~
+
+Requests older than five minutes, invalid IDs, missing headers, and invalid signatures are rejected without revealing tenant information.
+
+## Error format
+
+Expected errors have a stable, safe response shape:
+
+~~~json
+{
+  "error": {
+    "code": "filesystem_capability_unavailable",
+    "message": "open is denied because the Wasm sandbox has no filesystem capability."
+  }
+}
+~~~
+
+Useful error codes include plugin_not_compiled, filesystem_capability_unavailable, network_capability_unavailable, loops_forbidden, forbidden_import, memory_limit_violation, execution_timeout, fuel_exhausted, and not_found.
