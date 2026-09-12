@@ -15,15 +15,17 @@ def run_uploaded_wasm(file_path: str, a: int, b: int):
     engine = Engine(config)
     store = Store(engine)
 
+    # Limit WASM memory to 10 MB
+    max_memory_bytes = MAX_MEMORY_MB * 1024 * 1024
+    store.set_limits(memory_size=max_memory_bytes)
+
     # Set execution deadline
     store.set_epoch_deadline(1)
 
     # Load WASM module
     module = Module.from_file(engine, file_path)
 
-    # Security policy: deny all host imports.
-    # This prevents the WASM module from receiving host capabilities
-    # such as filesystem or network access.
+    # Security policy: deny all host imports
     imports = list(module.imports)
 
     if imports:
@@ -40,7 +42,6 @@ def run_uploaded_wasm(file_path: str, a: int, b: int):
             timeout_triggered.set()
             engine.increment_epoch()
 
-    # Start timeout watcher
     timeout_thread = threading.Thread(
         target=timeout_worker,
         daemon=True
@@ -71,5 +72,4 @@ def run_uploaded_wasm(file_path: str, a: int, b: int):
         raise
 
     finally:
-        # Stop timeout watcher when execution finishes
         timeout_triggered.set()
