@@ -40,6 +40,24 @@ def run_component_module(data: ComponentRunRequest):
         data.name,
     )
 
+    if result["status"] == "security_violation":
+        raise HTTPException(
+            status_code=403,
+            detail=result.get(
+                "error",
+                "Component security policy rejected the plugin.",
+            ),
+        )
+
+    if result["status"] == "timeout":
+        raise HTTPException(
+            status_code=408,
+            detail=result.get(
+                "error",
+                "Component execution timed out.",
+            ),
+        )
+
     if result["status"] == "error":
         raise HTTPException(
             status_code=400,

@@ -3,7 +3,11 @@ import shutil
 
 from fastapi.testclient import TestClient
 
+from wasmtime import Config, Engine
+from wasmtime.component import Component
+
 from backend.app.main import app
+from backend.app.component_service import run_component
 from backend.app.services.security_service import (
     validate_component_security,
 )
