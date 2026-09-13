@@ -11,7 +11,7 @@ __pycache__/
 .mypy_cache/
 
 # --- Pyodide / WASM build artifacts ---
-*.wasm
+
 *.wat
 build/
 dist/
