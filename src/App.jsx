@@ -8,18 +8,29 @@ import {
   ShieldAlert,
 } from "lucide-react"
 import { compileCode, runCode } from "./services/api"
+import { pluginTemplates } from "./data/templates"
 
 function App() {
   const [code, setCode] = useState(
     "# Write your Python code here\nprint('Hello, WasmBox!')"
   )
 
-  const [output, setOutput] = useState("Output will appear here.")
-  const [isCompiling, setIsCompiling] = useState(false)
-  const [isRunning, setIsRunning] = useState(false)
-  const [moduleId, setModuleId] = useState(null)
+  const [selectedTemplate, setSelectedTemplate] =
+    useState("")
 
-  // Phase 3 - Day 3: Backend Metrics
+  const [output, setOutput] = useState(
+    "Output will appear here."
+  )
+
+  const [isCompiling, setIsCompiling] =
+    useState(false)
+
+  const [isRunning, setIsRunning] =
+    useState(false)
+
+  const [moduleId, setModuleId] =
+    useState(null)
+
   const [metrics, setMetrics] = useState({
     executionTimeMs: 0,
     memoryUsedMb: 0,
@@ -27,7 +38,43 @@ function App() {
     status: "Ready",
   })
 
-  const [violationDetail, setViolationDetail] = useState(null)
+  const [violationDetail, setViolationDetail] =
+    useState(null)
+
+  const handleTemplateChange = (event) => {
+    const templateName = event.target.value
+
+    setSelectedTemplate(templateName)
+
+    if (!templateName) {
+      return
+    }
+
+    const selected = pluginTemplates.find(
+      (template) =>
+        template.name === templateName
+    )
+
+    if (!selected) {
+      return
+    }
+
+    setCode(selected.code)
+    setModuleId(null)
+
+    setOutput(
+      "Template loaded. Click Compile to continue."
+    )
+
+    setMetrics({
+      executionTimeMs: 0,
+      memoryUsedMb: 0,
+      memoryLimitMb: 128,
+      status: "Ready",
+    })
+
+    setViolationDetail(null)
+  }
 
   const handleCompile = async () => {
     setIsCompiling(true)
@@ -60,8 +107,12 @@ function App() {
         )
 
         if (
-          result.error?.toLowerCase().includes("restricted") ||
-          result.stderr?.toLowerCase().includes("restricted")
+          result.error
+            ?.toLowerCase()
+            .includes("restricted") ||
+          result.stderr
+            ?.toLowerCase()
+            .includes("restricted")
         ) {
           setViolationDetail({
             type: "BLOCKED",
@@ -88,7 +139,9 @@ function App() {
 
   const handleRun = async () => {
     if (!moduleId) {
-      setOutput("Please compile the code first.")
+      setOutput(
+        "Please compile the code first."
+      )
       return
     }
 
@@ -110,17 +163,17 @@ function App() {
         20
       )
 
-      // Phase 3 - Day 3
-      // Read execution metrics from backend
       const executionTimeMs =
         Number(result.execution_time_ms) || 0
 
       const memoryBytes =
         Number(result.memory_bytes) || 0
 
-      // Convert bytes to MB
       const memoryUsedMb = Number(
-        (memoryBytes / (1024 * 1024)).toFixed(2)
+        (
+          memoryBytes /
+          (1024 * 1024)
+        ).toFixed(2)
       )
 
       const securityStatus =
@@ -135,11 +188,15 @@ function App() {
 
       if (result.stderr) {
         setOutput(
-          `stdout:\n${result.stdout || ""}\n\nstderr:\n${result.stderr}`
+          `stdout:\n${
+            result.stdout || ""
+          }\n\nstderr:\n${result.stderr}`
         )
       } else {
         setOutput(
-          `stdout:\n${result.stdout || ""}`
+          `stdout:\n${
+            result.stdout || ""
+          }`
         )
       }
 
@@ -154,7 +211,6 @@ function App() {
       } else {
         setViolationDetail(null)
       }
-
     } catch (error) {
       setOutput(
         `Execution failed:\n${error.message}`
@@ -176,6 +232,7 @@ function App() {
 
   const handleCodeChange = (value) => {
     setCode(value || "")
+    setSelectedTemplate("")
 
     setMetrics({
       executionTimeMs: 0,
@@ -191,12 +248,40 @@ function App() {
     <div className="app">
 
       <header className="header">
+
         <h1>WasmBox</h1>
 
         <div className="actions">
+
+          <select
+            className="template-selector"
+            value={selectedTemplate}
+            onChange={handleTemplateChange}
+            disabled={
+              isCompiling || isRunning
+            }
+          >
+            <option value="">
+              Select Template
+            </option>
+
+            {pluginTemplates.map(
+              (template) => (
+                <option
+                  key={template.name}
+                  value={template.name}
+                >
+                  {template.name}
+                </option>
+              )
+            )}
+          </select>
+
           <button
             onClick={handleCompile}
-            disabled={isCompiling || isRunning}
+            disabled={
+              isCompiling || isRunning
+            }
           >
             {isCompiling
               ? "Compiling..."
@@ -215,14 +300,15 @@ function App() {
               ? "Running..."
               : "Run"}
           </button>
+
         </div>
+
       </header>
 
       <main className="main-content">
 
         <div className="workspace">
 
-          {/* Monaco Editor */}
           <div className="editor-container">
 
             <Editor
@@ -242,10 +328,8 @@ function App() {
 
           </div>
 
-          {/* Output Panel */}
           <div className="output-panel">
 
-            {/* Metrics Banner */}
             <div className="metrics-banner">
 
               <div className="metric-item">
@@ -264,7 +348,6 @@ function App() {
 
               </div>
 
-
               <div className="metric-item">
 
                 <MemoryStick size={18} />
@@ -281,7 +364,6 @@ function App() {
                 </div>
 
               </div>
-
 
               <div
                 className={`metric-item ${
@@ -311,8 +393,6 @@ function App() {
 
             </div>
 
-
-            {/* Security Alert */}
             {violationDetail && (
               <div className="security-alert">
 
@@ -338,7 +418,6 @@ function App() {
 
               </div>
             )}
-
 
             <div className="output-header">
               Output
