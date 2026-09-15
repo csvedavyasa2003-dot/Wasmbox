@@ -1,0 +1,176 @@
+# WasmBox
+
+WasmBox is a secure, multi-tenant plugin sandbox for a SaaS platform. Developers write a small, Python-like transform function in a React + Monaco portal; the backend validates it, compiles it into WebAssembly, and runs it with Wasmtime under strict capability and resource controls.
+
+> Important scope note: Wasmtime runs WebAssembly; it does not compile arbitrary CPython. This project implements **WasmBox Safe Python v1**, a deliberately constrained Python subset that is parsed with Python AST and lowered to WAT/Wasm. Tenant source is never sent to Python exec, eval, a shell, or a subprocess.
+
+## What the project demonstrates
+
+- A FastAPI backend using wasmtime-py.
+- Source-to-Wasm compilation for a documented safe Python subset.
+- Fresh Wasmtime Store and Instance per invocation.
+- No WASI linker, filesystem preopens, sockets, HTTP, environment, process, or clock imports.
+- Import allowlist and 10 MiB Wasm linear-memory ceiling.
+- Fuel budget plus a 50 ms epoch-interruption deadline.
+- Tenant-scoped SQLite persistence and signed demo tokens.
+- A narrowly scoped host-capability bridge for log output, numeric input, emitted results, and buffered authorized record writes.
+- React + Monaco editor portal with execution time, Wasm memory, fuel, stdout, returned JSON, saved plugins, and webhook simulation.
+- Security and tenancy tests, a threat model, a demo guide, and GitHub Actions CI.
+
+## Architecture
+
+~~~mermaid
+flowchart LR
+    U[Developer] --> P[React + Monaco portal]
+    P -->|Bearer demo token| A[FastAPI API]
+    A --> T[Signed tenant identity]
+    A --> C[Safe-subset AST compiler]
+    C --> W[WAT to Wasm artifact]
+    W --> S[Fresh Wasmtime Store + Instance]
+    S -->|only five allowlisted calls| H[Validated host capability bridge]
+    H --> R[Tenant-scoped SQLite records]
+    A --> R
+    S -. no WASI .-> X[No filesystem or network capability]
+~~~
+
+Further details: [project report](docs/PROJECT_REPORT.md), [threat model](docs/THREAT_MODEL.md), and [demo guide](docs/DEMO_GUIDE.md).
+
+## Repository layout
+
+~~~text
+backend/       FastAPI API, compiler, Wasmtime runtime, persistence, tests
+frontend/      Vite + React + Monaco developer portal
+samples/       benign and malicious demonstration sources
+fixtures/      audit WAT fixtures for runtime-level security tests
+docs/          report, threat model, API contract, and demo script
+.github/       CI workflow
+~~~
+
+## Quick start on Windows PowerShell
+
+Prerequisites: Python 3.11 or newer, Node.js 20 or newer, and npm.
+
+1. From the repository root, create and activate a virtual environment.
+
+~~~powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+~~~
+
+2. Optionally create a local environment file. The defaults are safe for a local demonstration, but replace the authentication secret before showing it to anyone else.
+
+~~~powershell
+Copy-Item .env.example .env
+$env:WASMBOX_AUTH_SECRET = "replace-this-with-a-long-random-secret"
+~~~
+
+3. Start the backend from the repository root.
+
+~~~powershell
+uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
+~~~
+
+4. In a second PowerShell window, start the frontend.
+
+~~~powershell
+Set-Location frontend
+npm install
+npm run dev
+~~~
+
+Open http://localhost:5173. Enter a demo tenant such as acme-demo, click **Connect**, then save, compile, and run the included invoice formatter.
+
+## Running the tests
+
+~~~powershell
+.\.venv\Scripts\Activate.ps1
+Set-Location backend
+pytest
+~~~
+
+The test suite covers the normal compile/run workflow, tenant isolation, compilation rejection for filesystem and network attempts, signed webhook authentication, forbidden WASI imports, infinite-loop interruption, and a memory maximum over 10 MiB.
+
+## Safe Python v1 language
+
+Every plugin contains one function called transform with exactly one input parameter. It may log literal text, request one narrow record-write capability, and return an object whose numeric expressions read numeric fields from the input.
+
+~~~python
+def transform(input):
+    print("Invoice formatting started")
+    write_authorized_record("status", "processed")
+    return {
+        "total_with_tax": input["amount"] * 1.18,
+        "large_order": input["amount"] > 1000,
+        "message": "approved",
+    }
+~~~
+
+Allowed:
+
+- Numeric literals, arithmetic (+, -, *, /), and comparisons.
+- Numeric reads using input["field"].
+- Literal strings and booleans in output.
+- print with one literal value.
+- write_authorized_record with literal key and value.
+- One non-empty returned dictionary with string keys.
+
+Rejected before compilation:
+
+- Imports, packages, sockets, HTTP clients, and networking.
+- open, paths, file contexts, and filesystem access.
+- Loops, classes, mutation, reflection, arbitrary calls, eval, exec, and compile.
+- Arbitrary Python libraries or arbitrary CPython source.
+
+The compiler produces a Wasm module with only the exact host imports it requires. It does not expose SQL, URLs, arbitrary table IDs, files, tokens, or generic HTTP to a plugin.
+
+## API summary
+
+| Endpoint | Purpose |
+| --- | --- |
+| POST /api/auth/demo-login | Issue a signed local-demo bearer token for a tenant slug. |
+| GET/POST /api/plugins | List or create tenant-owned plugins. |
+| GET/PATCH/DELETE /api/plugins/{id} | Tenant-scoped plugin management. |
+| POST /api/plugins/{id}/compile | Validate source and persist an immutable Wasm artifact. |
+| POST /api/plugins/{id}/run | Manually invoke a compiled artifact. |
+| POST /api/plugins/{id}/trigger | Invoke it through a simulated webhook. |
+| GET /api/plugins/{id}/runs | Inspect the plugin's tenant-scoped run history. |
+| GET /api/plugins/{id}/authorized-records | Inspect bounded authorized writes. |
+| POST /api/webhooks/{id} | Invoke via HMAC-SHA256 signed webhook with timestamp replay protection. |
+
+See [docs/API.md](docs/API.md) for request and response examples.
+
+## Security model and honest boundaries
+
+WasmBox uses **capability absence** as its primary policy: because the host never links WASI, a module has no API for files, network sockets, processes, environment variables, or host clocks. The backend additionally rejects imports not on an exact allowlist and restricts memory and execution budget.
+
+This is a strong project-level sandbox, but no single mechanism guarantees absolute security. A production deployment should also run workers under a low-privilege OS account, provide no cloud credentials, restrict outbound networking at the OS/network layer, isolate worker pools, audit Wasmtime upgrades, sign artifacts, and move SQLite storage to a tenant-aware production database.
+
+The displayed memory number is **Wasm linear memory**, not an inaccurate claim about exact whole-process RAM attribution. The 5 ms target in the brief must be benchmarked on the target machine for warmed simple modules; it is not promised for compilation, HTTP, or arbitrary workloads.
+
+## GitHub submission checklist
+
+- [x] Clean source layout and .gitignore
+- [x] Reproducible backend/frontend setup commands
+- [x] Tests and CI workflow
+- [x] Sample benign and malicious plugins
+- [x] Architecture, threat model, API reference, and report
+- [x] No real credentials or generated database committed
+- [ ] Run the test commands on the final submission machine and record benchmark values in the report
+- [ ] Create a GitHub repository, add its remote, and push the verified commit
+
+To publish after verifying locally:
+
+~~~powershell
+git add .
+git commit -m "feat: implement WasmBox secure plugin sandbox"
+git branch -M main
+git remote add origin https://github.com/YOUR-USERNAME/wasmbox.git
+git push -u origin main
+~~~
+
+Do not paste a personal access token into this repository, source file, README, or screenshot.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
