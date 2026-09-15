@@ -363,42 +363,8 @@ def test_run_component_missing_module():
 
     assert response.status_code == 404
 
-    shutil.copy2(source, destination)
 
-    try:
-        response = client.post(
-            "/api/run-component",
-            json={
-                "module_id": "hello-component.wasm",
-                "name": "Vedavyasa",
-            },
-        )
-
-        assert response.status_code == 200
-
-        data = response.json()
-
-        assert data["module_id"] == "hello-component.wasm"
-        assert data["result"] == "Hello, Vedavyasa!"
-        assert data["status"] == "success"
-        assert data["execution_time_ms"] >= 0
-
-    finally:
-        destination.unlink(missing_ok=True)
-
-
-def test_run_component_missing_module():
-    response = client.post(
-        "/api/run-component",
-        json={
-            "module_id": "does-not-exist.wasm",
-            "name": "Vedavyasa",
-        },
-    )
-
-    assert response.status_code == 404
-
-def test_compile_component_success():
+def test_compile_component_success():
     source = """
 import wit_world
 
@@ -520,3 +486,5 @@ def test_component_security_rejects_imports():
         assert False, "Expected PermissionError"
     except PermissionError as error:
         assert "unauthorized host capabilities" in str(error)
+
+

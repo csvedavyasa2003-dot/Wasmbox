@@ -11,7 +11,7 @@ from backend.app.services.security_service import (
 
 
 EXECUTION_TIMEOUT_SECONDS = 5
-
+MAX_MEMORY_BYTES = 32 * 1024 * 1024
 
 def run_component(file_path: str, name: str) -> dict:
     """
@@ -56,6 +56,11 @@ def run_component(file_path: str, name: str) -> dict:
 
         engine = Engine(config)
         store = Store(engine)
+
+        # Limit the total linear memory available to the component.
+        store.set_limits(
+            memory_size=MAX_MEMORY_BYTES,
+        )
 
         # Set the execution deadline to one epoch tick.
         store.set_epoch_deadline(1)
