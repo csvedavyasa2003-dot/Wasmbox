@@ -10,7 +10,7 @@ from backend.app.services.security_service import (
 )
 
 
-EXECUTION_TIMEOUT_SECONDS = 5
+EXECUTION_TIMEOUT_SECONDS = 30
 MAX_MEMORY_BYTES = 32 * 1024 * 1024
 
 def run_component(file_path: str, name: str) -> dict:
