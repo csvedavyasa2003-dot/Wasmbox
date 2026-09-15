@@ -219,3 +219,8 @@ __marimo__/
 
 # Node.js dependencies
 node_modules/
+
+# Local Wasm component experiments
+component-poc/**/*.wasm
+component-poc/**/__pycache__/
+
