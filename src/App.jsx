@@ -1,53 +1,62 @@
 import { useState } from "react"
 import Editor from "@monaco-editor/react"
 
-import { compileCode, runCode } from "./services/api"
+import {
+  compileComponent,
+  runComponent,
+} from "./services/api"
 
 function App() {
   const [code, setCode] = useState(
-    "# Write your Python code here\nprint('Hello, WasmBox!')"
+    "# Write your Python code here\n\ndef greet(name):\n    return f'Hello, {name}!'\n"
   )
 
+  const [moduleId, setModuleId] = useState("hello")
+  const [name, setName] = useState("Vedavyasa")
   const [output, setOutput] = useState("Output will appear here.")
 
   const [isCompiling, setIsCompiling] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
 
   const handleCompile = async () => {
-  setIsCompiling(true)
-  setOutput("Compiling...")
+    setIsCompiling(true)
+    setOutput("Compiling component...")
 
-  try {
-    const result = await compileCode(code)
+    try {
+      const result = await compileComponent(code, moduleId)
 
-    if (result.success) {
-      setOutput(`Compilation successful:\n\n${result.output || "No output"}`)
-    } else {
-      setOutput(`Compilation failed:\n\n${result.error || "Unknown error"}`)
+      if (result.success) {
+        setOutput(
+          `Compilation successful:\n\nModule: ${result.module_id}\nSize: ${result.size_bytes} bytes`
+        )
+      } else {
+        setOutput(
+          `Compilation failed:\n\n${result.error || "Unknown error"}`
+        )
+      }
+    } catch (error) {
+      setOutput(`Compilation failed:\n\n${error.message}`)
+    } finally {
+      setIsCompiling(false)
     }
-  } catch (error) {
-    setOutput(`Compilation failed:\n\n${error.message}`)
-  } finally {
-    setIsCompiling(false)
   }
-}
 
   const handleRun = async () => {
     setIsRunning(true)
-    setOutput("Running...")
+    setOutput("Running component...")
 
     try {
-      const result = await runCode("test.wasm", 10, 20)
+      const compiledModuleId = moduleId.endsWith(".wasm")
+        ? moduleId
+        : `${moduleId}.wasm`
 
-      if (result.stderr) {
-        setOutput(
-          `stdout:\n${result.stdout || ""}\n\nstderr:\n${result.stderr}`
-        )
-      } else {
-        setOutput(`stdout:\n${result.stdout || ""}`)
-      }
+      const result = await runComponent(compiledModuleId, name)
+
+      setOutput(
+        `Result:\n${result.result}\n\nStatus: ${result.status}\nExecution time: ${result.execution_time_ms} ms`
+      )
     } catch (error) {
-      setOutput(`Execution failed:\n${error.message}`)
+      setOutput(`Execution failed:\n\n${error.message}`)
     } finally {
       setIsRunning(false)
     }

@@ -1,36 +1,52 @@
 const API_BASE_URL = "http://localhost:8000"
 
-export async function compileCode(code) {
-  const response = await fetch(`${API_BASE_URL}/api/compile`, {
+export async function compileComponent(code, moduleId) {
+  const response = await fetch(`${API_BASE_URL}/api/compile-component`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({
+      code,
+      module_id: moduleId,
+    }),
   })
 
-  if (!response.ok) {
-    throw new Error(`Compilation failed: ${response.status}`)
+  const result = await response.json()
+
+  if (!response.ok || result.success === false) {
+    throw new Error(result.error || `Compilation failed: ${response.status}`)
   }
 
-  return response.json()
+  return result
 }
 
-export async function runCode(moduleId, a, b) {
-  const response = await fetch(`${API_BASE_URL}/api/run`, {
+export async function runComponent(moduleId, name) {
+  const response = await fetch(`${API_BASE_URL}/api/run-component`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       module_id: moduleId,
-      a,
-      b,
+      name,
     }),
   })
 
+  const result = await response.json()
+
   if (!response.ok) {
-    throw new Error(`Execution failed: ${response.status}`)
+    throw new Error(result.detail || `Execution failed: ${response.status}`)
+  }
+
+  return result
+}
+
+export async function listPlugins() {
+  const response = await fetch(`${API_BASE_URL}/api/plugins/`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to load plugins: ${response.status}`)
   }
 
   return response.json()
