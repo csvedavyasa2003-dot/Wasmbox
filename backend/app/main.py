@@ -4,16 +4,17 @@ from backend.app.api.routes import (
     compile,
     compile_component,
     execute,
+    execution_history,
     plugins,
     run,
     run_component,
 )
+
 app = FastAPI(
     title="WasmBox API",
     description="Secure multi-tenant WebAssembly plugin sandbox",
-    version="0.1.0"
+    version="0.1.0",
 )
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,7 +22,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    
 )
 
 
@@ -29,7 +29,7 @@ app.add_middleware(
 def root():
     return {
         "message": "WasmBox API is running",
-        "status": "ok"
+        "status": "ok",
     }
 
 
@@ -37,7 +37,7 @@ def root():
 def health_check():
     return {
         "status": "ok",
-        "service": "WasmBox"
+        "service": "WasmBox",
     }
 
 
@@ -47,3 +47,4 @@ app.include_router(plugins.router)
 app.include_router(run.router)
 app.include_router(run_component.router)
 app.include_router(compile_component.router)
+app.include_router(execution_history.router)
