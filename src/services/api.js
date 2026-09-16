@@ -1,23 +1,25 @@
-const API_BASE_URL = "http://localhost:8000"
+const API_BASE_URL = "http://localhost:8000/api";
 
 export async function compileCode(code) {
-  const response = await fetch(`${API_BASE_URL}/api/compile`, {
+  const response = await fetch(`${API_BASE_URL}/compile`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ code }),
-  })
+  });
+
+  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(`Compilation failed: ${response.status}`)
+    throw new Error(data.detail || "Compilation failed");
   }
 
-  return response.json()
+  return data;
 }
 
-export async function runCode(moduleId, a, b) {
-  const response = await fetch(`${API_BASE_URL}/api/run`, {
+export async function runCode(moduleId, a = 10, b = 20) {
+  const response = await fetch(`${API_BASE_URL}/run`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -27,11 +29,13 @@ export async function runCode(moduleId, a, b) {
       a,
       b,
     }),
-  })
+  });
+
+  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(`Execution failed: ${response.status}`)
+    throw new Error(data.detail || "Execution failed");
   }
 
-  return response.json()
+  return data;
 }

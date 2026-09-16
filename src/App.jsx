@@ -1,4 +1,5 @@
-import { useState } from "react"
+
+import { useEffect, useState } from "react"
 import "./App.css"
 import Editor from "@monaco-editor/react"
 import {
@@ -9,10 +10,24 @@ import {
 } from "lucide-react"
 import { compileCode, runCode } from "./services/api"
 import { pluginTemplates } from "./data/templates"
+import { loadDraft, saveDraft } from "./utils/draftStorage"
 
 function App() {
+  const [initialDraft] = useState(() => {
+    try {
+      return loadDraft()
+    } catch {
+      return null
+    }
+  })
+
   const [code, setCode] = useState(
-    "# Write your Python code here\nprint('Hello, WasmBox!')"
+    initialDraft?.code ??
+      "# Write your Python code here\nprint('Hello, WasmBox!')"
+  )
+
+  const [pluginTitle, setPluginTitle] = useState(
+    initialDraft?.title ?? "Untitled Plugin"
   )
 
   const [selectedTemplate, setSelectedTemplate] =
@@ -41,6 +56,15 @@ function App() {
   const [violationDetail, setViolationDetail] =
     useState(null)
 
+  // Automatically save the code and plugin title
+  useEffect(() => {
+    try {
+      saveDraft(code, pluginTitle)
+    } catch (error) {
+      console.error("Could not save draft:", error)
+    }
+  }, [code, pluginTitle])
+
   const handleTemplateChange = (event) => {
     const templateName = event.target.value
 
@@ -51,8 +75,7 @@ function App() {
     }
 
     const selected = pluginTemplates.find(
-      (template) =>
-        template.name === templateName
+      (template) => template.name === templateName
     )
 
     if (!selected) {
@@ -60,6 +83,7 @@ function App() {
     }
 
     setCode(selected.code)
+    setPluginTitle(selected.name)
     setModuleId(null)
 
     setOutput(
@@ -139,9 +163,7 @@ function App() {
 
   const handleRun = async () => {
     if (!moduleId) {
-      setOutput(
-        "Please compile the code first."
-      )
+      setOutput("Please compile the code first.")
       return
     }
 
@@ -170,10 +192,7 @@ function App() {
         Number(result.memory_bytes) || 0
 
       const memoryUsedMb = Number(
-        (
-          memoryBytes /
-          (1024 * 1024)
-        ).toFixed(2)
+        (memoryBytes / (1024 * 1024)).toFixed(2)
       )
 
       const securityStatus =
@@ -194,9 +213,7 @@ function App() {
         )
       } else {
         setOutput(
-          `stdout:\n${
-            result.stdout || ""
-          }`
+          `stdout:\n${result.stdout || ""}`
         )
       }
 
@@ -246,46 +263,45 @@ function App() {
 
   return (
     <div className="app">
-
       <header className="header">
-
         <h1>WasmBox</h1>
 
         <div className="actions">
+          <input
+            className="plugin-title-input"
+            type="text"
+            value={pluginTitle}
+            onChange={(event) =>
+              setPluginTitle(event.target.value)
+            }
+            placeholder="Plugin title"
+            aria-label="Plugin title"
+            disabled={isCompiling || isRunning}
+          />
 
           <select
             className="template-selector"
             value={selectedTemplate}
             onChange={handleTemplateChange}
-            disabled={
-              isCompiling || isRunning
-            }
+            disabled={isCompiling || isRunning}
           >
-            <option value="">
-              Select Template
-            </option>
+            <option value="">Select Template</option>
 
-            {pluginTemplates.map(
-              (template) => (
-                <option
-                  key={template.name}
-                  value={template.name}
-                >
-                  {template.name}
-                </option>
-              )
-            )}
+            {pluginTemplates.map((template) => (
+              <option
+                key={template.name}
+                value={template.name}
+              >
+                {template.name}
+              </option>
+            ))}
           </select>
 
           <button
             onClick={handleCompile}
-            disabled={
-              isCompiling || isRunning
-            }
+            disabled={isCompiling || isRunning}
           >
-            {isCompiling
-              ? "Compiling..."
-              : "Compile"}
+            {isCompiling ? "Compiling..." : "Compile"}
           </button>
 
           <button
@@ -296,21 +312,14 @@ function App() {
               !moduleId
             }
           >
-            {isRunning
-              ? "Running..."
-              : "Run"}
+            {isRunning ? "Running..." : "Run"}
           </button>
-
         </div>
-
       </header>
 
       <main className="main-content">
-
         <div className="workspace">
-
           <div className="editor-container">
-
             <Editor
               height="100%"
               language="python"
@@ -325,15 +334,11 @@ function App() {
                 automaticLayout: true,
               }}
             />
-
           </div>
 
           <div className="output-panel">
-
             <div className="metrics-banner">
-
               <div className="metric-item">
-
                 <Clock size={18} />
 
                 <div>
@@ -345,11 +350,9 @@ function App() {
                     {metrics.executionTimeMs} ms
                   </span>
                 </div>
-
               </div>
 
               <div className="metric-item">
-
                 <MemoryStick size={18} />
 
                 <div>
@@ -362,7 +365,6 @@ function App() {
                     {metrics.memoryLimitMb} MB
                   </span>
                 </div>
-
               </div>
 
               <div
@@ -372,7 +374,6 @@ function App() {
                     : "sandbox-clean"
                 }`}
               >
-
                 {violationDetail ? (
                   <ShieldAlert size={18} />
                 ) : (
@@ -388,20 +389,16 @@ function App() {
                     {metrics.status}
                   </span>
                 </div>
-
               </div>
-
             </div>
 
             {violationDetail && (
               <div className="security-alert">
-
                 <div className="security-alert-icon">
                   <ShieldAlert size={20} />
                 </div>
 
                 <div className="security-alert-content">
-
                   <div className="security-alert-title">
                     Sandbox Violation Detected
                   </div>
@@ -409,13 +406,11 @@ function App() {
                   <div className="security-alert-message">
                     {violationDetail.message}
                   </div>
-
                 </div>
 
                 <div className="security-badge">
                   {violationDetail.type}
                 </div>
-
               </div>
             )}
 
@@ -426,13 +421,9 @@ function App() {
             <div className="output-content">
               <pre>{output}</pre>
             </div>
-
           </div>
-
         </div>
-
       </main>
-
     </div>
   )
 }
