@@ -51,3 +51,20 @@ export async function listPlugins() {
 
   return response.json()
 }
+export async function runPython(code) {
+  const response = await fetch(`${API_BASE_URL}/api/run-python`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ code }),
+  })
+
+  const result = await response.json()
+
+  if (!response.ok || result.success === false) {
+    throw new Error(result.error || `Python execution failed: ${response.status}`)
+  }
+
+  return result
+}
