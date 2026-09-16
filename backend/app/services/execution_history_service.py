@@ -1,58 +1,67 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
 from typing import Any
 
 
 class ExecutionHistoryService:
-    def __init__(self) -> None:
-        self.history_path = (
-            Path(__file__).resolve().parents[2] / "logs" / "execution_history.jsonl"
-        )
-        self.history_path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = Lock()
+    def __init__(self):
+        self.logs_directory = Path("backend/logs")
+        self.logs_directory.mkdir(parents=True, exist_ok=True)
+
+        self.history_path = self.logs_directory / "execution_history.jsonl"
 
     def record(self, entry: dict[str, Any]) -> None:
-        with self._lock:
-            with self.history_path.open("a", encoding="utf-8") as file:
-                file.write(json.dumps(entry) + "\n")
+        self.logs_directory.mkdir(parents=True, exist_ok=True)
 
-    def get_history(self) -> list[dict[str, Any]]:
+        with self.history_path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(entry, default=str) + "\n")
+
+    def get_history(self, limit: int = 50) -> list[dict[str, Any]]:
         if not self.history_path.exists():
             return []
 
-        records = []
+        entries = []
+
         with self.history_path.open("r", encoding="utf-8") as file:
             for line in file:
-                try:
-                    records.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+                line = line.strip()
 
-        return records
+                if line:
+                    entries.append(json.loads(line))
+
+        return entries[-limit:][::-1]
 
     def get_metrics(self) -> dict[str, Any]:
-        records = self.get_history()
-        successful = [
-            record
-            for record in records
-            if record.get("status") == "success"
-        ]
+        history = self.get_history(limit=10000)
+
+        total_runs = len(history)
+        successful_runs = sum(
+            1 for entry in history if entry.get("status") == "success"
+        )
+        failed_runs = total_runs - successful_runs
 
         execution_times = [
-            record["execution_time_ms"]
-            for record in successful
-            if isinstance(record.get("execution_time_ms"), (int, float))
+            entry["execution_time_ms"]
+            for entry in history
+            if entry.get("status") == "success"
+            and isinstance(entry.get("execution_time_ms"), (int, float))
         ]
 
+        average_execution_time_ms = (
+            sum(execution_times) / len(execution_times)
+            if execution_times
+            else 0
+        )
+
         return {
-            "total_runs": len(records),
-            "successful_runs": len(successful),
-            "failed_runs": len(records) - len(successful),
+            "total_runs": total_runs,
+            "successful_runs": successful_runs,
+            "failed_runs": failed_runs,
             "average_execution_time_ms": round(
-                sum(execution_times) / len(execution_times),
+                average_execution_time_ms,
                 2,
-            ) if execution_times else 0,
+            ),
         }
 
 

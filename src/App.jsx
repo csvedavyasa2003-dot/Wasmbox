@@ -8,7 +8,13 @@ import {
 
 function App() {
   const [code, setCode] = useState(
-    "# Write your Python code here\n\ndef greet(name):\n    return f'Hello, {name}!'\n"
+    `import wit_world
+
+
+class WitWorld(wit_world.WitWorld):
+    def greet(self, name: str) -> str:
+        return f"Hello, {name}!"
+`
   )
 
   const [moduleId, setModuleId] = useState("hello")
@@ -27,15 +33,24 @@ function App() {
 
       if (result.success) {
         setOutput(
-          `Compilation successful:\n\nModule: ${result.module_id}\nSize: ${result.size_bytes} bytes`
+          `Compilation successful:
+
+Module: ${result.module_id}
+Size: ${result.size_bytes} bytes
+
+You can now run the component.`
         )
       } else {
         setOutput(
-          `Compilation failed:\n\n${result.error || "Unknown error"}`
+          `Compilation failed:
+
+${result.error || "Unknown compilation error"}`
         )
       }
     } catch (error) {
-      setOutput(`Compilation failed:\n\n${error.message}`)
+      setOutput(`Compilation failed:
+
+${error.message}`)
     } finally {
       setIsCompiling(false)
     }
@@ -53,10 +68,16 @@ function App() {
       const result = await runComponent(compiledModuleId, name)
 
       setOutput(
-        `Result:\n${result.result}\n\nStatus: ${result.status}\nExecution time: ${result.execution_time_ms} ms`
+        `Result:
+${result.result}
+
+Status: ${result.status}
+Execution time: ${result.execution_time_ms} ms`
       )
     } catch (error) {
-      setOutput(`Execution failed:\n\n${error.message}`)
+      setOutput(`Execution failed:
+
+${error.message}`)
     } finally {
       setIsRunning(false)
     }
@@ -93,6 +114,13 @@ function App() {
               theme="vs-dark"
               value={code}
               onChange={(value) => setCode(value || "")}
+              options={{
+                minimap: {
+                  enabled: false,
+                },
+                fontSize: 14,
+                automaticLayout: true,
+              }}
             />
           </div>
 
@@ -105,6 +133,30 @@ function App() {
               <pre>{output}</pre>
             </div>
           </div>
+        </div>
+
+        <div className="component-settings">
+          <label>
+            Module ID
+            <input
+              type="text"
+              value={moduleId}
+              onChange={(event) => setModuleId(event.target.value)}
+              placeholder="hello"
+              disabled={isCompiling || isRunning}
+            />
+          </label>
+
+          <label>
+            Name
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Vedavyasa"
+              disabled={isCompiling || isRunning}
+            />
+          </label>
         </div>
       </main>
     </div>
