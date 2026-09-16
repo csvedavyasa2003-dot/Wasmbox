@@ -8,6 +8,7 @@ from backend.app.api.routes import (
     plugins,
     run,
     run_component,
+    run_python,
 )
 
 app = FastAPI(
@@ -48,3 +49,4 @@ app.include_router(run.router)
 app.include_router(run_component.router)
 app.include_router(compile_component.router)
 app.include_router(execution_history.router)
+app.include_router(run_python.router)
