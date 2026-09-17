@@ -224,3 +224,11 @@ node_modules/
 component-poc/**/*.wasm
 component-poc/**/__pycache__/
 
+# WasmBox generated runtime files
+backend/logs/
+backend/uploads/
+uploads/
+
+# Test and editor cache
+.pytest_cache/
+.vscode/

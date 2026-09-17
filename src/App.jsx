@@ -23,9 +23,11 @@ class WitWorld(wit_world.WitWorld):
 
   const [isCompiling, setIsCompiling] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
+  const [isCompiled, setIsCompiled] = useState(false)
 
   const handleCompile = async () => {
     setIsCompiling(true)
+    setIsCompiled(false)
     setOutput("Compiling component...")
 
     try {
@@ -40,23 +42,38 @@ Size: ${result.size_bytes} bytes
 
 You can now run the component.`
         )
+
+        setIsCompiled(true)
       } else {
         setOutput(
           `Compilation failed:
 
 ${result.error || "Unknown compilation error"}`
         )
+
+        setIsCompiled(false)
       }
     } catch (error) {
-      setOutput(`Compilation failed:
+      setOutput(
+        `Compilation failed:
 
-${error.message}`)
+${error.message}`
+      )
+
+      setIsCompiled(false)
     } finally {
       setIsCompiling(false)
     }
   }
 
   const handleRun = async () => {
+    if (!isCompiled) {
+      setOutput(
+        "Please compile the current code successfully before running."
+      )
+      return
+    }
+
     setIsRunning(true)
     setOutput("Running component...")
 
@@ -75,12 +92,24 @@ Status: ${result.status}
 Execution time: ${result.execution_time_ms} ms`
       )
     } catch (error) {
-      setOutput(`Execution failed:
+      setOutput(
+        `Execution failed:
 
-${error.message}`)
+${error.message}`
+      )
     } finally {
       setIsRunning(false)
     }
+  }
+
+  const handleCodeChange = (value) => {
+    setCode(value || "")
+    setIsCompiled(false)
+  }
+
+  const handleModuleIdChange = (event) => {
+    setModuleId(event.target.value)
+    setIsCompiled(false)
   }
 
   return (
@@ -98,7 +127,7 @@ ${error.message}`)
 
           <button
             onClick={handleRun}
-            disabled={isCompiling || isRunning}
+            disabled={!isCompiled || isCompiling || isRunning}
           >
             {isRunning ? "Running..." : "Run"}
           </button>
@@ -113,7 +142,7 @@ ${error.message}`)
               language="python"
               theme="vs-dark"
               value={code}
-              onChange={(value) => setCode(value || "")}
+              onChange={handleCodeChange}
               options={{
                 minimap: {
                   enabled: false,
@@ -141,7 +170,7 @@ ${error.message}`)
             <input
               type="text"
               value={moduleId}
-              onChange={(event) => setModuleId(event.target.value)}
+              onChange={handleModuleIdChange}
               placeholder="hello"
               disabled={isCompiling || isRunning}
             />
