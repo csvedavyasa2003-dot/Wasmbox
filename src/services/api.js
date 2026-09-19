@@ -1,41 +1,67 @@
-const API_BASE_URL = "http://localhost:8000/api";
 
-export async function compileCode(code) {
-  const response = await fetch(`${API_BASE_URL}/compile`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ code }),
-  });
+const COMPILER_URL = "http://localhost:8001/api";
 
-  const data = await response.json();
+async function apiRequest(url, options, fallbackMessage) {
+  let response;
+
+  try {
+    response = await fetch(url, options);
+  } catch {
+    throw new Error(
+      "Cannot connect to the compiler service. Make sure it is running on port 8001."
+    );
+  }
+
+  let data;
+
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`Invalid server response (HTTP ${response.status}).`);
+  }
 
   if (!response.ok) {
-    throw new Error(data.detail || "Compilation failed");
+    const message =
+      data.detail || data.error || data.message || fallbackMessage;
+
+    throw new Error(
+      typeof message === "string" ? message : JSON.stringify(message)
+    );
   }
 
   return data;
 }
 
-export async function runCode(moduleId, a = 10, b = 20) {
-  const response = await fetch(`${API_BASE_URL}/run`, {
+function createCodeRequest(code) {
+  if (!code || !code.trim()) {
+    throw new Error("Please enter Python code first.");
+  }
+
+  return {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      module_id: moduleId,
-      a,
-      b,
-    }),
-  });
+    body: JSON.stringify({ code }),
+  };
+}
 
-  const data = await response.json();
+export async function compileCode(code) {
+  const options = createCodeRequest(code);
 
-  if (!response.ok) {
-    throw new Error(data.detail || "Execution failed");
-  }
+  return apiRequest(
+    `${COMPILER_URL}/compile`,
+    options,
+    "Python validation failed."
+  );
+}
 
-  return data;
+export async function runCode(code) {
+  const options = createCodeRequest(code);
+
+  return apiRequest(
+    `${COMPILER_URL}/run`,
+    options,
+    "Python execution failed."
+  );
 }

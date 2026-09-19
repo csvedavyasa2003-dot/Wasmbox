@@ -12,6 +12,16 @@ import { compileCode, runCode } from "./services/api"
 import { pluginTemplates } from "./data/templates"
 import { loadDraft, saveDraft } from "./utils/draftStorage"
 
+const DEFAULT_CODE =
+  "# Write your Python code here\nprint('Hello, WasmBox!')"
+
+const DEFAULT_METRICS = {
+  executionTimeMs: 0,
+  memoryUsedMb: 0,
+  memoryLimitMb: 128,
+  status: "Ready",
+}
+
 function App() {
   const [initialDraft] = useState(() => {
     try {
@@ -22,41 +32,20 @@ function App() {
   })
 
   const [code, setCode] = useState(
-    initialDraft?.code ??
-      "# Write your Python code here\nprint('Hello, WasmBox!')"
+    initialDraft?.code ?? DEFAULT_CODE
   )
 
   const [pluginTitle, setPluginTitle] = useState(
     initialDraft?.title ?? "Untitled Plugin"
   )
 
-  const [selectedTemplate, setSelectedTemplate] =
-    useState("")
+  const [selectedTemplate, setSelectedTemplate] = useState("")
+  const [output, setOutput] = useState("Output will appear here.")
+  const [isCompiling, setIsCompiling] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
+  const [metrics, setMetrics] = useState(DEFAULT_METRICS)
+  const [violationDetail, setViolationDetail] = useState(null)
 
-  const [output, setOutput] = useState(
-    "Output will appear here."
-  )
-
-  const [isCompiling, setIsCompiling] =
-    useState(false)
-
-  const [isRunning, setIsRunning] =
-    useState(false)
-
-  const [moduleId, setModuleId] =
-    useState(null)
-
-  const [metrics, setMetrics] = useState({
-    executionTimeMs: 0,
-    memoryUsedMb: 0,
-    memoryLimitMb: 128,
-    status: "Ready",
-  })
-
-  const [violationDetail, setViolationDetail] =
-    useState(null)
-
-  // Automatically save the code and plugin title
   useEffect(() => {
     try {
       saveDraft(code, pluginTitle)
@@ -65,183 +54,137 @@ function App() {
     }
   }, [code, pluginTitle])
 
+  const resetResults = () => {
+    setMetrics(DEFAULT_METRICS)
+    setViolationDetail(null)
+    setOutput("Code changed. Compile or run it to see the result.")
+  }
+
   const handleTemplateChange = (event) => {
     const templateName = event.target.value
-
     setSelectedTemplate(templateName)
 
-    if (!templateName) {
-      return
-    }
+    if (!templateName) return
 
     const selected = pluginTemplates.find(
       (template) => template.name === templateName
     )
 
-    if (!selected) {
-      return
-    }
+    if (!selected) return
 
     setCode(selected.code)
     setPluginTitle(selected.name)
-    setModuleId(null)
-
-    setOutput(
-      "Template loaded. Click Compile to continue."
-    )
-
-    setMetrics({
-      executionTimeMs: 0,
-      memoryUsedMb: 0,
-      memoryLimitMb: 128,
-      status: "Ready",
-    })
-
+    setMetrics(DEFAULT_METRICS)
     setViolationDetail(null)
+    setOutput("Template loaded. Click Compile to validate the code.")
   }
 
   const handleCompile = async () => {
     setIsCompiling(true)
-    setOutput("Compiling...")
+    setOutput("Validating Python code...")
+    setMetrics({
+      ...DEFAULT_METRICS,
+      status: "Compiling",
+    })
     setViolationDetail(null)
 
     try {
       const result = await compileCode(code)
 
       if (result.success) {
-        setModuleId("test.wasm")
-
         setOutput(
-          `Compilation successful.\n\nCompiler output:\n${
-            result.stdout || ""
-          }`
+          result.message || "Python code validation successful."
         )
-
-        setMetrics((previous) => ({
-          ...previous,
-          status: "Ready",
-        }))
+        setMetrics({
+          ...DEFAULT_METRICS,
+          status: "Valid",
+        })
       } else {
-        setOutput(
-          `Compilation failed.\n\n${
-            result.error ||
-            result.stderr ||
-            "Unknown error"
-          }`
-        )
+        const message =
+          result.error ||
+          result.stderr ||
+          "Python code validation failed."
 
-        if (
-          result.error
-            ?.toLowerCase()
-            .includes("restricted") ||
-          result.stderr
-            ?.toLowerCase()
-            .includes("restricted")
-        ) {
+        setOutput(`Validation failed:\n${message}`)
+        setMetrics({
+          ...DEFAULT_METRICS,
+          status: "BLOCKED",
+        })
+
+        if (message.toLowerCase().includes("restricted")) {
           setViolationDetail({
             type: "BLOCKED",
-            message:
-              result.error ||
-              result.stderr ||
-              "Restricted operation blocked.",
+            message,
           })
-
-          setMetrics((previous) => ({
-            ...previous,
-            status: "BLOCKED",
-          }))
         }
       }
     } catch (error) {
-      setOutput(
-        `Compilation failed:\n${error.message}`
-      )
+      setOutput(`Validation failed:\n${error.message}`)
+      setMetrics({
+        ...DEFAULT_METRICS,
+        status: "ERROR",
+      })
     } finally {
       setIsCompiling(false)
     }
   }
 
   const handleRun = async () => {
-    if (!moduleId) {
-      setOutput("Please compile the code first.")
-      return
-    }
-
     setIsRunning(true)
-    setOutput("Running...")
-    setViolationDetail(null)
-
+    setOutput("Running Python code...")
     setMetrics({
-      executionTimeMs: 0,
-      memoryUsedMb: 0,
-      memoryLimitMb: 128,
+      ...DEFAULT_METRICS,
       status: "Running",
     })
+    setViolationDetail(null)
 
     try {
-      const result = await runCode(
-        moduleId,
-        10,
-        20
-      )
+      const result = await runCode(code)
+      const stdout = result.stdout || ""
+      const stderr = result.stderr || ""
+      const errorMessage = result.error || ""
 
-      const executionTimeMs =
-        Number(result.execution_time_ms) || 0
-
-      const memoryBytes =
-        Number(result.memory_bytes) || 0
-
-      const memoryUsedMb = Number(
-        (memoryBytes / (1024 * 1024)).toFixed(2)
-      )
-
-      const securityStatus =
-        result.security_status || "CLEAN"
-
-      setMetrics({
-        executionTimeMs,
-        memoryUsedMb,
-        memoryLimitMb: 128,
-        status: securityStatus,
-      })
-
-      if (result.stderr) {
+      if (result.success) {
         setOutput(
-          `stdout:\n${
-            result.stdout || ""
-          }\n\nstderr:\n${result.stderr}`
+          `stdout:\n${stdout || "(No output)"}${
+            stderr ? `\n\nstderr:\n${stderr}` : ""
+          }`
         )
-      } else {
-        setOutput(
-          `stdout:\n${result.stdout || ""}`
-        )
-      }
 
-      if (securityStatus !== "CLEAN") {
-        setViolationDetail({
-          type: securityStatus,
-          message:
-            result.stderr ||
-            result.error ||
-            "Sandbox security policy was triggered.",
+        setMetrics({
+          ...DEFAULT_METRICS,
+          status: "Completed",
         })
       } else {
-        setViolationDetail(null)
+        const details =
+          errorMessage || stderr || "Python execution failed."
+
+        setOutput(
+          `Execution failed:\n${stdout ? `${stdout}\n` : ""}${details}`
+        )
+
+        setMetrics({
+          ...DEFAULT_METRICS,
+          status: "ERROR",
+        })
+
+        if (details.toLowerCase().includes("restricted")) {
+          setViolationDetail({
+            type: "BLOCKED",
+            message: details,
+          })
+          setMetrics({
+            ...DEFAULT_METRICS,
+            status: "BLOCKED",
+          })
+        }
       }
     } catch (error) {
-      setOutput(
-        `Execution failed:\n${error.message}`
-      )
-
-      setViolationDetail({
-        type: "BLOCKED",
-        message: error.message,
+      setOutput(`Execution failed:\n${error.message}`)
+      setMetrics({
+        ...DEFAULT_METRICS,
+        status: "ERROR",
       })
-
-      setMetrics((previous) => ({
-        ...previous,
-        status: "BLOCKED",
-      }))
     } finally {
       setIsRunning(false)
     }
@@ -250,16 +193,11 @@ function App() {
   const handleCodeChange = (value) => {
     setCode(value || "")
     setSelectedTemplate("")
-
-    setMetrics({
-      executionTimeMs: 0,
-      memoryUsedMb: 0,
-      memoryLimitMb: 128,
-      status: "Ready",
-    })
-
+    setMetrics(DEFAULT_METRICS)
     setViolationDetail(null)
   }
+
+  const isBusy = isCompiling || isRunning
 
   return (
     <div className="app">
@@ -276,14 +214,17 @@ function App() {
             }
             placeholder="Plugin title"
             aria-label="Plugin title"
-            disabled={isCompiling || isRunning}
+            title="Enter or edit your plugin title"
+            disabled={isBusy}
           />
 
           <select
             className="template-selector"
             value={selectedTemplate}
             onChange={handleTemplateChange}
-            disabled={isCompiling || isRunning}
+            title="Choose a preset Python code template"
+            aria-label="Select code template"
+            disabled={isBusy}
           >
             <option value="">Select Template</option>
 
@@ -299,18 +240,16 @@ function App() {
 
           <button
             onClick={handleCompile}
-            disabled={isCompiling || isRunning}
+            title="Validate your Python code"
+            disabled={isBusy}
           >
             {isCompiling ? "Compiling..." : "Compile"}
           </button>
 
           <button
             onClick={handleRun}
-            disabled={
-              isCompiling ||
-              isRunning ||
-              !moduleId
-            }
+            title="Run the Python code in the editor"
+            disabled={isBusy}
           >
             {isRunning ? "Running..." : "Run"}
           </button>
@@ -382,7 +321,7 @@ function App() {
 
                 <div>
                   <span className="metric-label">
-                    Sandbox
+                    Execution Status
                   </span>
 
                   <span className="metric-value">
@@ -400,7 +339,7 @@ function App() {
 
                 <div className="security-alert-content">
                   <div className="security-alert-title">
-                    Sandbox Violation Detected
+                    Restricted Operation Blocked
                   </div>
 
                   <div className="security-alert-message">
