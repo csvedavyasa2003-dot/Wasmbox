@@ -8,44 +8,47 @@ function App() {
   });
 
   const [history, setHistory] = useState([]);
+  const [error, setError] = useState("");
 
-  const fetchData = async () => {
+  const API_BASE = "http://127.0.0.1:8000";
+
+  const loadData = async () => {
     try {
-      const metricsResponse = await fetch(
-        "http://127.0.0.1:8000/api/metrics"
-      );
-      const metricsData = await metricsResponse.json();
-      setMetrics(metricsData);
+      setError("");
 
-      const historyResponse = await fetch(
-        "http://127.0.0.1:8000/api/history"
-      );
+      const metricsResponse = await fetch(`${API_BASE}/api/metrics`);
+      const historyResponse = await fetch(`${API_BASE}/api/history`);
+
+      if (!metricsResponse.ok || !historyResponse.ok) {
+        throw new Error("Failed to fetch data");
+      }
+
+      const metricsData = await metricsResponse.json();
       const historyData = await historyResponse.json();
+
+      setMetrics(metricsData);
       setHistory(historyData);
-    } catch (error) {
-      console.error("Error fetching data:", error);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to connect to backend.");
     }
   };
 
   useEffect(() => {
-    fetchData();
+    loadData();
 
     const interval = setInterval(() => {
-      fetchData();
+      loadData();
     }, 5000);
 
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div
-      style={{
-        textAlign: "center",
-        padding: "30px",
-        fontFamily: "Arial",
-      }}
-    >
+    <div className="container">
       <h1>WasmBox Dashboard</h1>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
       <h2>Metrics</h2>
 
@@ -55,13 +58,15 @@ function App() {
           justifyContent: "center",
           gap: "20px",
           marginBottom: "30px",
+          flexWrap: "wrap",
         }}
       >
         <div
           style={{
-            border: "1px solid gray",
+            border: "1px solid #ccc",
             padding: "20px",
-            width: "180px",
+            minWidth: "220px",
+            borderRadius: "10px",
           }}
         >
           <h3>Total Runs</h3>
@@ -70,43 +75,57 @@ function App() {
 
         <div
           style={{
-            border: "1px solid gray",
+            border: "1px solid #ccc",
             padding: "20px",
-            width: "250px",
+            minWidth: "220px",
+            borderRadius: "10px",
           }}
         >
           <h3>Average Execution Time</h3>
-          <p>{metrics.average_execution_time_ms} ms</p>
+          <p>{metrics.average_execution_time_ms.toFixed(2)} ms</p>
         </div>
       </div>
 
-      <button onClick={fetchData}>Refresh</button>
+      <button onClick={loadData}>Refresh</button>
 
       <h2 style={{ marginTop: "40px" }}>Execution History</h2>
 
       {history.length === 0 ? (
-        <p>No executions found</p>
+        <p>No execution history found.</p>
       ) : (
-        <ul
-          style={{
-            listStyle: "none",
-            padding: 0,
-          }}
-        >
+        <div>
           {history.map((item, index) => (
-            <li
+            <div
               key={index}
               style={{
-                border: "1px solid #ccc",
+                border: "1px solid #ddd",
                 margin: "10px auto",
                 padding: "10px",
-                maxWidth: "700px",
+                maxWidth: "900px",
+                borderRadius: "8px",
               }}
             >
-              {item}
-            </li>
+              <strong>{item.module_name}</strong>
+
+              <p>
+                Inputs: a={item.input_a}, b={item.input_b}
+              </p>
+
+              <p>Output: {item.output}</p>
+
+              <p>
+                Execution Time: {item.execution_time_ms?.toFixed(2)} ms
+              </p>
+
+              <p>
+                Executed At:{" "}
+                {item.executed_at
+                  ? new Date(item.executed_at).toLocaleString()
+                  : "N/A"}
+              </p>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
