@@ -1,0 +1,122 @@
+WasmBox is a SaaS-oriented execution environment for tenant-provided data transformation plugins. Running arbitrary Python directly on a backend server gives a tenant access to a powerful host runtime and risks filesystem access, network access, data leakage, denial of service, and cross-tenant impact. Creating a heavyweight container for every very small plugin can also add latency and operational cost. This project investigates WebAssembly as a lightweight execution boundary. A browser portal accepts a deliberately constrained Python-like plugin, a backend compiler validates its abstract syntax tree and lowers it to WebAssembly, and Wasmtime executes each invocation in a fresh sandbox with no WebAssembly System Interface (WASI), an exact host-import allowlist, a 10 MiB linear-memory ceiling, fuel accounting, and a 50 ms execution deadline.
+
+The result is a demonstrable, multi-tenant prototype rather than a claim that arbitrary CPython automatically becomes WebAssembly. Its main contribution is an honest capability-security design: a plugin has no file or network API because the host does not provide one, and its only privileged interactions are narrow validated functions for logging, input fields, returned values, and a server-scoped authorized record write.
+
+## 1. Problem statement and objectives
+
+The project brief asks for a secure multi-tenant sandbox in which developers can author Python plugins, compile them into WebAssembly, execute them with Wasmtime, protect server filesystem and network access, bound memory and execution time, provide a React + Monaco editor, display metrics, save plugins, and trigger them by webhook.
+
+The objectives were:
+
+1. Build a browser-based plugin development portal.
+2. Accept source through a backend API without ever executing tenant source as host Python.
+3. Compile a supported source language into an executable Wasm artifact.
+4. Demonstrate filesystem and network capability denial.
+5. Enforce resource controls and expose defensible execution metrics.
+6. Prevent cross-tenant plugin and run access.
+7. Expose one narrowly scoped host capability rather than general server access.
+8. Package tests, documentation, and CI for GitHub submission.
+
+## 2. Scope decision: safe Python subset
+
+WebAssembly runtimes execute Wasm binaries; they are not general Python compilers. A direct claim that arbitrary untrusted CPython source is compiled by Wasmtime would be technically inaccurate. Pyodide and MicroPython alternatives require an embedded interpreter/runtime and significantly expand the artifact and attack surface. For a reliable student-scale implementation, WasmBox defines Safe Python v1.
+
+Safe Python v1 requires one function named transform(input). It permits literal logging, a literal authorized record write, numeric input lookups, arithmetic, comparisons, literal output values, and a returned dictionary. Imports, loops, files, networking, arbitrary calls, mutation, reflection, dynamic code execution, and arbitrary packages are rejected. The compiler uses ast.parse, validates allowed node types, produces WAT programmatically, and turns WAT into a binary with wasmtime-py. No tenant text passes through exec, eval, compile, a shell, or a subprocess.
+
+This decision preserves the core learning goals—source-to-Wasm compilation, Wasmtime execution, host functions, capability security, resource constraints, and a complete portal—while avoiding a false security or functionality claim.
+
+## 3. System architecture
+
+~~~mermaid
+flowchart TD
+  DEV[Developer in Monaco editor] --> FE[React developer portal]
+  FE --> AUTH[Signed demo token]
+  AUTH --> API[FastAPI application]
+  API --> DB[(Tenant-scoped SQLite)]
+  API --> COMP[AST allowlist compiler]
+  COMP --> WAT[Generated WAT]
+  WAT --> ART[Immutable Wasm artifact]
+  ART --> RT[Fresh Wasmtime Store and Instance]
+  RT --> HC[Validated host callbacks]
+  HC --> OUT[Logs, result object, buffered write intents]
+  OUT --> DB
+  RT -. no WASI linker .-> DENY[Filesystem and network unavailable]
+~~~
+
+The frontend uses React, Vite, and Microsoft Monaco through the React Monaco wrapper. The API uses FastAPI. SQLite is appropriate for a local demonstration; the repository layer isolates storage details so a production implementation can move to PostgreSQL with row-level security. A signed local-demo token binds an API request to a tenant; user-provided tenant IDs are never accepted for ordinary plugin operations.
+
+Compilation stores a SHA-256 source hash, immutable Wasm bytes, and artifact hash. Each invocation creates a new Wasmtime Store and Instance. The engine and compiled modules may be reused by the runtime implementation, but Stores, Instances, guest memory, stdout context, output context, and write intents are never shared between tenants or runs.
+
+## 4. Sandbox design
+
+### 4.1 Capability absence
+
+The strongest control is that no WASI linker is configured. A module therefore receives no filesystem preopens, no environment variables, no processes, no sockets, no HTTP client, and no generic host system call surface. Before instantiation, the backend scans every imported module/name pair. It accepts only a small set under the wasmbox namespace and rejects imports such as wasi_snapshot_preview1.fd_read before guest code starts.
+
+### 4.2 Approved host functions
+
+| Host function | Purpose | Controls |
+| --- | --- | --- |
+| log | Add one guest text line to stdout. | Pointer, length, bounds, UTF-8, line count, and byte caps. |
+| input_number | Read one numeric property from the invocation's own JSON input. | Literal field key emitted by compiler; numeric and finite value validation. |
+| emit_number / emit_bool / emit_text | Build returned JSON. | Valid key, no duplicate keys, output field count and size caps. |
+| write_authorized_record | Request a bounded key/value record write. | Literal compiler values, allowed key shape, value/write caps, server-bound tenant and plugin. |
+
+No callback accepts SQL, a database table, a tenant ID, a file path, a URL, a credential, or arbitrary host object. Record writes are buffered during execution and committed only if the whole invocation succeeds. A timeout or trap discards all write intents.
+
+### 4.3 Resource limits
+
+The compiler declares one linear memory with a maximum of 160 Wasm pages. A page is 65,536 bytes, yielding a 10 MiB cap. Artifact validation refuses a missing maximum, a maximum above 160 pages, a different memory name, or multiple exported memories. Store-level memory limits are applied as defense in depth when supported by the installed Wasmtime release.
+
+Wasmtime fuel is enabled per Store. The runtime also configures epoch interruption and schedules a 50 ms deadline. Source loops are rejected early, but the runtime-level infinite-loop WAT fixture proves that a malicious binary is interrupted using fuel or the deadline. The user interface reports execution duration, fuel consumed, and Wasm linear-memory bytes. It intentionally does not call linear memory exact process RAM.
+
+## 5. Multi-tenant authorization
+
+The local portal starts with an explicitly labelled demo login. It issues an HMAC-signed token containing a tenant slug and expiration. Requests with a body or browser-selected tenant cannot change the authenticated tenant. Repository methods take tenant_id for normal lookups, and a plugin that belongs to another tenant receives a 404 response rather than an existence leak. Run history and authorized record writes are also filtered by tenant and plugin.
+
+The signed webhook endpoint is separate from browser authentication. It obtains only the candidate plugin's secret, verifies HMAC-SHA256 over timestamp plus raw request body, enforces a five-minute freshness window, and only then invokes the plugin under the plugin's stored tenant. The normal portal uses a simulated webhook endpoint for a frictionless demonstration.
+
+## 6. User interface and workflow
+
+The portal contains a tenant selector, saved-plugin sidebar, Monaco source editor, Save and Compile to Wasm actions, JSON invocation input, Run and Simulate webhook controls, and result cards. A successful result shows stdout, returned JSON, status, milliseconds, fuel, Wasm linear memory, and tenant-scoped authorized record writes. Clear frontend messaging explains that saving source invalidates the old artifact until recompilation.
+
+The intended workflow is:
+
+1. Connect as a local demonstration tenant.
+2. Create or select a plugin.
+3. Save source through the tenant-scoped API.
+4. Compile it to a validated Wasm artifact.
+5. Provide JSON input and run it in a fresh sandbox.
+6. Inspect output and metrics, or trigger through the simulated webhook.
+
+## 7. Security evaluation
+
+| Test | Expected evidence |
+| --- | --- |
+| Benign compile/run | Result object, stdout, metrics, and bounded authorized write are returned. |
+| Filesystem source probe | open(/etc/passwd) is rejected with filesystem_capability_unavailable. |
+| Network source probe | import socket is rejected with network_capability_unavailable. |
+| Malicious Wasm import | A WAT module importing wasi_snapshot_preview1.fd_read is rejected before instantiation. |
+| Infinite loop | A raw Wasm loop consumes fuel or hits epoch interruption and returns timed_out. |
+| Excess memory declaration | A module declaring 161 pages is rejected against the 160-page limit. |
+| Cross-tenant access | Tenant B sees 404 for Tenant A's plugin and run endpoints. |
+| Webhook spoofing | Invalid HMAC is rejected; valid timestamped HMAC succeeds. |
+
+The repository contains pytest cases for every row. Before submission, run the test command on the final machine and include terminal/CI output. Benchmark measurements should also be recorded on that machine rather than fabricated. For a warmed simple module, record at least 30 invocations and report p50 and p95 separately from compilation and HTTP overhead.
+
+## 8. Limitations and future work
+
+The project is intentionally limited to a small language. Supporting more Python requires either a substantially richer compiler or a sandboxed embedded interpreter, with further audit and resource-management work. SQLite is suitable only for the local prototype. Demo tokens are not an enterprise identity system. Epoch interruption and fuel are important availability controls but production also needs worker process isolation, queues, quotas, rate limiting, observability, and OS-level containment.
+
+Future work includes artifact signing, compiler versioning, a PostgreSQL repository with row-level security, OIDC/SAML authentication, production webhook secret rotation and nonce replay storage, a low-privilege worker pool with egress firewalling, richer but still statically bounded guest language features, and automated benchmark dashboards.
+
+## 9. Conclusion
+
+WasmBox demonstrates how a multi-tenant platform can offer plugin extensibility without handing arbitrary host-language execution to tenants. The core result is not merely a WebAssembly runtime: it is a complete capability-oriented workflow combining source validation, Wasm compilation, strict imports, absent WASI capabilities, resource constraints, fresh per-run state, tenant authorization, narrow host functions, and a usable developer portal. The project satisfies the educational objectives while clearly documenting the difference between an auditable restricted language and unrestricted Python execution.
+
+## References
+
+1. Bytecode Alliance. Wasmtime documentation and Python API. https://docs.wasmtime.dev/
+2. WebAssembly Community Group. WebAssembly Core Specification. https://webassembly.github.io/spec/core/
+3. FastAPI. Security and dependency-injection documentation. https://fastapi.tiangolo.com/
+4. Microsoft. Monaco Editor project. https://microsoft.github.io/monaco-editor/
