@@ -4,7 +4,7 @@ import wasmtime
 
 
 MAX_FUEL = 100_000
-
+MAX_MEMORY_MB = 10
 
 def run_uploaded_wasm(file_path: str, a: int, b: int):
     config = wasmtime.Config()
@@ -12,7 +12,9 @@ def run_uploaded_wasm(file_path: str, a: int, b: int):
 
     engine = wasmtime.Engine(config)
     store = wasmtime.Store(engine)
-
+    # Limit WASM memory to 10 MB.
+    max_memory_bytes = MAX_MEMORY_MB * 1024 * 1024
+    store.set_limits(memory_size=max_memory_bytes)
     # Limit the amount of WebAssembly execution.
     store.set_fuel(MAX_FUEL)
 
