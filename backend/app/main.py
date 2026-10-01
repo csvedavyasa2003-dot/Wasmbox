@@ -18,10 +18,11 @@ app = FastAPI(
     version="0.1.0",
 )
 
-allowed_origins = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:5174"
-).split(",")
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://wasmbox-1.onrender.com",
+]
 
 print("CORS ALLOWED ORIGINS:", allowed_origins)
 
